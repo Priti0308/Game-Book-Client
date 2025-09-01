@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect,useRef } from "react";
 import {
   FaUsers,
   FaClock,
@@ -19,8 +19,23 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useNavigate } from "react-router-dom";
+
 
 const AdminDashboard = () => {
+ const navigate = useNavigate();
+
+   // --- Authentication check ---
+  useEffect(() => {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role");
+
+  if (!token || role !== "admin") {
+    navigate("/", { replace: true });
+  }
+}, [navigate]);
+
+
   const [collapsed, setCollapsed] = useState(false);
   const [currentSection, setCurrentSection] = useState("dashboard");
   const [vendors, setVendors] = useState([]);
@@ -41,7 +56,7 @@ const AdminDashboard = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [editVendor, setEditVendor] = useState(null);
   const [newPassword, setNewPassword] = useState("");
-
+  
   const toggleSidebar = () => setCollapsed(!collapsed);
 
   const menu = [
@@ -212,6 +227,25 @@ const AdminDashboard = () => {
   const filteredVendors = vendors.filter((vendor) =>
     vendor.businessName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+const handleLogout = () => {
+  const role = localStorage.getItem("role"); // get current role
+
+  // Clear auth/session
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+  localStorage.removeItem("vendorId");
+  localStorage.removeItem("vendorProfile");
+
+  // Redirect to correct login
+  if (role === "admin") {
+    navigate("/", { replace: true });
+  } else if (role === "vendor") {
+    navigate("/vendor-login", { replace: true });
+  }
+};
+
+
+
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 text-gray-800">
@@ -233,6 +267,7 @@ const AdminDashboard = () => {
         </div>
         <nav className="flex flex-col gap-2 p-2">
           {menu.map((item) => (
+            
             <button
               key={item.key}
               onClick={() => setCurrentSection(item.key)}
@@ -245,8 +280,19 @@ const AdminDashboard = () => {
               {item.icon}
               {!collapsed && <span>{item.label}</span>}
             </button>
+            
           ))}
+          
         </nav>
+  <button
+  onClick={handleLogout}
+  className="flex items-center gap-3 p-2 mt-2 rounded-lg font-medium text-red-600 hover:bg-red-100 transition"
+>
+  <FaTimesCircle />
+  {!collapsed && <span>Logout</span>}
+</button>
+
+
       </div>
 
       {/* Main */}
@@ -534,6 +580,8 @@ const AdminDashboard = () => {
                 </>
               )}
             </div>
+            
+            
             {/* Footer */}
             <div className="flex justify-end space-x-2 p-4 border-t border-white/20">
               <button
@@ -549,12 +597,67 @@ const AdminDashboard = () => {
                 Save Changes
               </button>
             </div>
+            
           </div>
+          
+          
           
         </div>
         
+        
       )}
       
+      {showPasswordModal && (
+  <div className="fixed inset-0 flex items-center justify-center z-50">
+    {/* Overlay */}
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50"
+      onClick={() => setShowPasswordModal(false)}
+    ></div>
+
+    {/* Modal content */}
+    <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-xl text-white w-full max-w-md relative z-10">
+      {/* Header */}
+      <div className="flex justify-between items-center p-4 border-b border-white/20">
+        <h2 className="text-lg font-bold">Change Password</h2>
+        <button
+          onClick={() => setShowPasswordModal(false)}
+          className="text-white text-xl font-bold hover:text-gray-200"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="p-4">
+        <input
+          type="password"
+          className="w-full px-3 py-2 mb-3 rounded-lg text-gray-900"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="Enter new password"
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="flex justify-end space-x-2 p-4 border-t border-white/20">
+        <button
+          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
+          onClick={() => setShowPasswordModal(false)}
+        >
+          Close
+        </button>
+        <button
+          className="px-4 py-2 bg-white text-purple-600 font-semibold rounded-lg hover:bg-purple-100 transition"
+          onClick={savePassword}
+        >
+          Save Password
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 };
