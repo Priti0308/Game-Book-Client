@@ -1,4 +1,4 @@
-import React, { useState, useEffect,useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaUsers,
   FaClock,
@@ -21,20 +21,21 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useNavigate } from "react-router-dom";
 
+// Define the base API URL
+const API_BASE_URI = "https://game-book.onrender.com";
 
 const AdminDashboard = () => {
- const navigate = useNavigate();
+  const navigate = useNavigate();
 
-   // --- Authentication check ---
+  // --- Authentication check ---
   useEffect(() => {
-  const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role");
+    const token = localStorage.getItem("token");
+    const role = localStorage.getItem("role");
 
-  if (!token || role !== "admin") {
-    navigate("/", { replace: true });
-  }
-}, [navigate]);
-
+    if (!token || role !== "admin") {
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
 
   const [collapsed, setCollapsed] = useState(false);
   const [currentSection, setCurrentSection] = useState("dashboard");
@@ -72,7 +73,7 @@ const AdminDashboard = () => {
 
   const fetchVendors = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/vendors");
+      const res = await axios.get(`${API_BASE_URI}/api/vendors`);
       const all = res.data;
       setVendors(all);
       setPendingVendors(all.filter((v) => v.status === "pending"));
@@ -80,6 +81,7 @@ const AdminDashboard = () => {
       setRejectedVendors(all.filter((v) => v.status === "rejected"));
     } catch (error) {
       console.error(error);
+      toast.error("Failed to fetch vendors.");
     }
   };
 
@@ -91,7 +93,7 @@ const AdminDashboard = () => {
     }
     try {
       setLoading(true);
-      await axios.post("http://localhost:5000/api/vendors", {
+      await axios.post(`${API_BASE_URI}/api/vendors`, {
         name,
         businessName,
         mobile,
@@ -116,7 +118,7 @@ const AdminDashboard = () => {
 
   const handleApprove = async (id) => {
     try {
-      await axios.put(`http://localhost:5000/api/vendors/${id}`, {
+      await axios.put(`${API_BASE_URI}/api/vendors/${id}`, {
         status: "approved",
       });
       toast.success("Vendor approved!");
@@ -128,7 +130,7 @@ const AdminDashboard = () => {
 
   const handleReject = async (id) => {
     try {
-      await axios.put(`http://localhost:5000/api/vendors/${id}`, {
+      await axios.put(`${API_BASE_URI}/api/vendors/${id}`, {
         status: "rejected",
       });
       toast.info("Vendor rejected.");
@@ -140,7 +142,7 @@ const AdminDashboard = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/vendors/${id}`);
+      await axios.delete(`${API_BASE_URI}/api/vendors/${id}`);
       toast.warning("Vendor deleted.");
       fetchVendors();
     } catch {
@@ -166,7 +168,7 @@ const AdminDashboard = () => {
     }
     try {
       await axios.put(
-        `http://localhost:5000/api/vendors/${editVendor._id}`,
+        `${API_BASE_URI}/api/vendors/${editVendor._id}`,
         editVendor
       );
       toast.success("Vendor updated!");
@@ -190,7 +192,7 @@ const AdminDashboard = () => {
     }
     try {
       await axios.put(
-        `http://localhost:5000/api/vendors/${editVendor._id}/password`,
+        `${API_BASE_URI}/api/vendors/${editVendor._id}/password`,
         { password: newPassword }
       );
       toast.success("Password updated!");
@@ -227,25 +229,22 @@ const AdminDashboard = () => {
   const filteredVendors = vendors.filter((vendor) =>
     vendor.businessName.toLowerCase().includes(searchTerm.toLowerCase())
   );
-const handleLogout = () => {
-  const role = localStorage.getItem("role"); // get current role
+  const handleLogout = () => {
+    const role = localStorage.getItem("role"); // get current role
 
-  // Clear auth/session
-  localStorage.removeItem("token");
-  localStorage.removeItem("role");
-  localStorage.removeItem("vendorId");
-  localStorage.removeItem("vendorProfile");
+    // Clear auth/session
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    localStorage.removeItem("vendorId");
+    localStorage.removeItem("vendorProfile");
 
-  // Redirect to correct login
-  if (role === "admin") {
-    navigate("/", { replace: true });
-  } else if (role === "vendor") {
-    navigate("/vendor-login", { replace: true });
-  }
-};
-
-
-
+    // Redirect to correct login
+    if (role === "admin") {
+      navigate("/", { replace: true });
+    } else if (role === "vendor") {
+      navigate("/vendor-login", { replace: true });
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-purple-500 to-pink-500 text-gray-800">
@@ -284,15 +283,13 @@ const handleLogout = () => {
           ))}
           
         </nav>
-  <button
-  onClick={handleLogout}
-  className="flex items-center gap-3 p-2 mt-2 rounded-lg font-medium text-red-600 hover:bg-red-100 transition"
->
-  <FaTimesCircle />
-  {!collapsed && <span>Logout</span>}
-</button>
-
-
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 p-2 mt-2 rounded-lg font-medium text-red-600 hover:bg-red-100 transition"
+        >
+          <FaTimesCircle />
+          {!collapsed && <span>Logout</span>}
+        </button>
       </div>
 
       {/* Main */}
@@ -608,59 +605,57 @@ const handleLogout = () => {
       )}
       
       {showPasswordModal && (
-  <div className="fixed inset-0 flex items-center justify-center z-50">
-    {/* Overlay */}
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50"
-      onClick={() => setShowPasswordModal(false)}
-    ></div>
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50"
+            onClick={() => setShowPasswordModal(false)}
+          ></div>
 
-    {/* Modal content */}
-    <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-xl text-white w-full max-w-md relative z-10">
-      {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-white/20">
-        <h2 className="text-lg font-bold">Change Password</h2>
-        <button
-          onClick={() => setShowPasswordModal(false)}
-          className="text-white text-xl font-bold hover:text-gray-200"
-        >
-          ✕
-        </button>
-      </div>
+          {/* Modal content */}
+          <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-xl text-white w-full max-w-md relative z-10">
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 border-b border-white/20">
+              <h2 className="text-lg font-bold">Change Password</h2>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="text-white text-xl font-bold hover:text-gray-200"
+              >
+                ✕
+              </button>
+            </div>
 
-      {/* Body */}
-      <div className="p-4">
-        <input
-          type="password"
-          className="w-full px-3 py-2 mb-3 rounded-lg text-gray-900"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          placeholder="Enter new password"
-        />
-      </div>
+            {/* Body */}
+            <div className="p-4">
+              <input
+                type="password"
+                className="w-full px-3 py-2 mb-3 rounded-lg text-gray-900"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+              />
+            </div>
 
-      {/* Footer */}
-      <div className="flex justify-end space-x-2 p-4 border-t border-white/20">
-        <button
-          className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-          onClick={() => setShowPasswordModal(false)}
-        >
-          Close
-        </button>
-        <button
-          className="px-4 py-2 bg-white text-purple-600 font-semibold rounded-lg hover:bg-purple-100 transition"
-          onClick={savePassword}
-        >
-          Save Password
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
+            {/* Footer */}
+            <div className="flex justify-end space-x-2 p-4 border-t border-white/20">
+              <button
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
+                onClick={() => setShowPasswordModal(false)}
+              >
+                Close
+              </button>
+              <button
+                className="px-4 py-2 bg-white text-purple-600 font-semibold rounded-lg hover:bg-purple-100 transition"
+                onClick={savePassword}
+              >
+                Save Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default AdminDashboard;
-

@@ -4,6 +4,9 @@ import { FaEdit, FaTrashAlt, FaPrint } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+// Define the base API URL
+const API_BASE_URI = "https://game-book.onrender.com";
+
 const ReceiptForm = ({ businessName }) => {
   const [formData, setFormData] = useState(() => {
     const savedData = localStorage.getItem("receiptData");
@@ -47,7 +50,7 @@ const ReceiptForm = ({ businessName }) => {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/customers", {
+        const response = await fetch(`${API_BASE_URI}/api/customers`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await response.json();

@@ -5,6 +5,9 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useNavigate } from 'react-router-dom';
 
+// Define the base API URL
+const API_BASE_URI = "https://game-book.onrender.com";
+
 const Login = () => {
   const [role, setRole] = useState("admin");
   const [username, setUsername] = useState("");
@@ -36,7 +39,7 @@ const Login = () => {
 
       if (role === "admin") {
         // Admin login
-        const { data } = await axios.post("http://localhost:5000/api/auth/login", {
+        const { data } = await axios.post(`${API_BASE_URI}/api/auth/login`, {
           role: "admin",
           username,
           password,
@@ -50,7 +53,7 @@ const Login = () => {
 
       } else {
         // Vendor login
-        const { data } = await axios.post("http://localhost:5000/api/vendors/login", {
+        const { data } = await axios.post(`${API_BASE_URI}/api/vendors/login`, {
           mobile,
           password,
         });
@@ -68,7 +71,7 @@ const Login = () => {
         // Fetch vendor profile
         try {
           const profileRes = await axios.get(
-            "http://localhost:5000/api/vendors/me",
+            `${API_BASE_URI}/api/vendors/me`,
             {
               headers: { Authorization: `Bearer ${data.token}` },
             }

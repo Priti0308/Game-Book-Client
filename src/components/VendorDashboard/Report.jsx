@@ -1,6 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { FaSearch, FaArrowLeft } from "react-icons/fa";
+import { FaSearch, FaArrowLeft, FaSpinner } from "react-icons/fa";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+// Define the base API URL
+const API_BASE_URI = "https://game-book.onrender.com";
 
 export default function ReportPage() {
   const [customers, setCustomers] = useState([]);
@@ -11,15 +16,15 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-const [currentPage, setCurrentPage] = useState(1);
-const [itemsPerPage] = useState(10); // adjust per page
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10); // adjust per page
 
   const token = localStorage.getItem("token");
-// Get current page customers
-const indexOfLastItem = currentPage * itemsPerPage;
-const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
-const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  // Get current page customers
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
 
   // Fetch customers on mount
   useEffect(() => {
@@ -28,7 +33,7 @@ const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
       setLoading(true);
       try {
         const res = await axios.get(
-          "http://localhost:5000/api/reports/customers",
+          `${API_BASE_URI}/api/reports/customers`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
@@ -51,23 +56,20 @@ const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
   }, [token]);
 
   // Search filter
-useEffect(() => {
-  if (!search) {
-    setFilteredCustomers(customers);
-  } else {
-    setFilteredCustomers(
-      customers.filter((c) =>
-        (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
-        (c.contact && c.contact.includes(search)) ||
-        (c.srNo && c.srNo.toString() === search.trim())
-      )
-    );
-  }
-  setCurrentPage(1); // reset to first page on search
-}, [search, customers]);
-
-
-
+  useEffect(() => {
+    if (!search) {
+      setFilteredCustomers(customers);
+    } else {
+      setFilteredCustomers(
+        customers.filter((c) =>
+          (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
+          (c.contact && c.contact.includes(search)) ||
+          (c.srNo && c.srNo.toString() === search.trim())
+        )
+      );
+    }
+    setCurrentPage(1); // reset to first page on search
+  }, [search, customers]);
 
   const handleSelect = async (customer) => {
     setSelectedCustomer(customer);
@@ -76,7 +78,7 @@ useEffect(() => {
 
     try {
       const dailyRes = await axios.get(
-        `http://localhost:5000/api/reports/customer/${customer._id}`,
+        `${API_BASE_URI}/api/reports/customer/${customer._id}`,
         {
           params: { period: "daily", date: today },
           headers: { Authorization: `Bearer ${token}` },
@@ -84,7 +86,7 @@ useEffect(() => {
       );
 
       const monthlyRes = await axios.get(
-        `http://localhost:5000/api/reports/customer/${customer._id}`,
+        `${API_BASE_URI}/api/reports/customer/${customer._id}`,
         {
           params: { period: "monthly", date: today },
           headers: { Authorization: `Bearer ${token}` },
@@ -102,10 +104,11 @@ useEffect(() => {
   };
 
   return (
-<div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl mx-auto space-y-8">
+    <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl mx-auto space-y-8">
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
       <h1 className="text-3xl font-bold mb-6 text-gray-800">Customer Reports</h1>
 
-      {loading && <p className="text-gray-500 mb-4">Loading...</p>}
+      {loading && <div className="flex justify-center items-center h-48"><FaSpinner className="animate-spin text-purple-600 text-4xl" /></div>}
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
       {!selectedCustomer ? (
@@ -124,7 +127,7 @@ useEffect(() => {
 
           {/* Customers Table */}
           <div className="overflow-x-auto border rounded-lg shadow max-h-[400px] overflow-y-auto">
-  <table className="min-w-full">
+            <table className="min-w-full">
               <thead className="bg-gray-100">
                 <tr>
                   <th className="border p-2 text-left">Sr.No.</th>
@@ -132,51 +135,49 @@ useEffect(() => {
                   <th className="border p-2 text-left">Contact</th>
                 </tr>
               </thead>
-             <tbody>
-  {currentCustomers.length > 0 ? (
-    currentCustomers.map((c, idx) => (
-      <tr
-        key={c._id || idx}
-        className="cursor-pointer hover:bg-gray-50 transition"
-        onClick={() => handleSelect(c)}
-      >
-<td className="border p-2">{c.srNo}</td>
-        <td className="border p-2">{c.name}</td>
-        <td className="border p-2">{c.contact || "-"}</td>
-      </tr>
-    ))
-  ) : (
-    <tr>
-      <td colSpan="3" className="p-4 text-center text-gray-500">
-        No customers found
-      </td>
-    </tr>
-  )}
-</tbody>
-
+              <tbody>
+                {currentCustomers.length > 0 ? (
+                  currentCustomers.map((c, idx) => (
+                    <tr
+                      key={c._id || idx}
+                      className="cursor-pointer hover:bg-gray-50 transition"
+                      onClick={() => handleSelect(c)}
+                    >
+                      <td className="border p-2">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                      <td className="border p-2">{c.name}</td>
+                      <td className="border p-2">{c.contact || "-"}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="3" className="p-4 text-center text-gray-500">
+                      No customers found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
             </table>
             <div className="flex justify-between items-center mt-4">
-  <button
-    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-    disabled={currentPage === 1}
-    className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-  >
-    Previous
-  </button>
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+              >
+                Previous
+              </button>
 
-  <span>
-    Page {currentPage} of {totalPages}
-  </span>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
 
-  <button
-    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-    disabled={currentPage === totalPages}
-    className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-  >
-    Next
-  </button>
-</div>
-
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -207,8 +208,6 @@ useEffect(() => {
               <p className="text-2xl font-bold">₹{monthlyIncome}</p>
             </div>
           </div>
-
-          {/* Future: Add weekly/monthly charts here */}
         </div>
       )}
     </div>

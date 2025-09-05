@@ -4,6 +4,9 @@ import { FaEdit, FaTrashAlt, FaPrint, FaSpinner, FaSearch } from "react-icons/fa
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+// Define the base API URL
+const API_BASE_URI = "https://game-book.onrender.com";
+
 // A component to render the printable receipt view
 const PrintableReceipt = React.forwardRef(({ receiptData }, ref) => {
   if (!receiptData) return null;
@@ -198,7 +201,7 @@ const ViewReceipts = () => {
           throw new Error("Authentication token not found.");
         }
 
-        const response = await fetch("http://localhost:5000/api/receipts", {
+        const response = await fetch(`${API_BASE_URI}/api/receipts`, {
           headers: {
             "Authorization": `Bearer ${token}`
           }
@@ -238,7 +241,7 @@ const ViewReceipts = () => {
     
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/receipts/${deleteId}`, {
+      const response = await fetch(`${API_BASE_URI}/api/receipts/${deleteId}`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -311,7 +314,6 @@ const ViewReceipts = () => {
         </div>
       )}
       
-      {/* Printable View */}
       <div className="absolute top-0 left-0 -z-50" style={{ opacity: 0 }}>
         {receiptToPrint && <PrintableReceipt receiptData={receiptToPrint} ref={printRef} />}
       </div>
@@ -391,7 +393,6 @@ const ViewReceipts = () => {
         </div>
       </div>
       
-      {/* Conditionally render the printable component for printing */}
       <div className="absolute top-0 left-0 -z-50" style={{ opacity: 0 }}>
         {receiptToPrint && <PrintableReceipt receiptData={receiptToPrint} ref={printRef} />}
       </div>
