@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  FaHome,
   FaTachometerAlt,
   FaQuestionCircle,
   FaUserCircle,
@@ -16,13 +15,17 @@ import {
   FaBuilding,
   FaEdit,
   FaCoins,
-  FaUserPlus,
+  FaSpinner, // Import FaSpinner for the loading state
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import CustomerTab from "./CustomerTab";
 import Report from "./Report";
 import "react-toastify/dist/ReactToastify.css";
 import ReceiptForm from "./ReceiptForm";
+import ViewReceipts from "./ViewReceipts";
+
+// Define the base API URL
+const API_BASE_URI = "https://game-book.onrender.com";
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
@@ -33,6 +36,7 @@ const VendorDashboard = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [newCustomersToday, setNewCustomersToday] = useState(0);
   const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true); // Add loading state
 
   // Sidebar toggle
   const toggleSidebar = () => setCollapsed(!collapsed);
@@ -79,9 +83,6 @@ const VendorDashboard = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
 
-    // Optional: remove vendor info if you want complete logout
-    // localStorage.removeItem("vendor");
-
     // Force reload to login page, blocks back button access
     window.location.replace("/");
   };
@@ -104,6 +105,7 @@ const VendorDashboard = () => {
     }
 
     setVendor(vendorData);
+    setLoading(false); // Set loading to false after attempting to get vendor data
   }, []);
 
   useEffect(() => {
@@ -140,9 +142,9 @@ const VendorDashboard = () => {
   const handleSave = async () => {
     try {
       const token = localStorage.getItem("token");
-      if (!token) return alert("Not logged in!");
+      if (!token) return toast.error("Not logged in!");
 
-      const res = await fetch("http://localhost:5000/api/vendors/me", {
+      const res = await fetch(`${API_BASE_URI}/api/vendors/me`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -180,7 +182,7 @@ const VendorDashboard = () => {
         // DAILY REPORT
         if (reportType === "daily") {
           const dailyRes = await fetch(
-            `http://localhost:5000/api/reports/customer/${customerId}?period=daily&date=${selectedDate}`,
+            `${API_BASE_URI}/api/reports/customer/${customerId}?period=daily&date=${selectedDate}`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           const dailyData = await dailyRes.json();
@@ -190,7 +192,7 @@ const VendorDashboard = () => {
         // MONTHLY REPORT
         if (reportType === "monthly") {
           const monthlyRes = await fetch(
-            `http://localhost:5000/api/reports/customer/${customerId}?period=monthly&date=${selectedMonth}-01`,
+            `${API_BASE_URI}/api/reports/customer/${customerId}?period=monthly&date=${selectedMonth}-01`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
           const monthlyData = await monthlyRes.json();
@@ -203,6 +205,14 @@ const VendorDashboard = () => {
 
     fetchReport();
   }, [reportType, selectedDate, selectedMonth, selectedCustomer]);
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <FaSpinner className="animate-spin text-purple-600 text-6xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-100">
@@ -480,8 +490,10 @@ const VendorDashboard = () => {
           />
         )}
 
-        {currentSection === "createReceipt" && <ReceiptForm />}
+        {currentSection === "createReceipt" && <ReceiptForm businessName={vendor?.businessName} />}
 
+
+        {currentSection === "viewReceipts" && <ViewReceipts />}
         {currentSection === "reports" && <Report />}
 
         {currentSection === "help" && (
@@ -491,7 +503,7 @@ const VendorDashboard = () => {
               <h1 className="text-3xl font-bold text-purple-600 mb-2">
                 Varad Consultants & Analyst Pvt. Ltd
               </h1>
-              <p className="text-gray-700 text-lg">
+              <p className="text-gray-700 text-lg" >
                 How can we help you today?
               </p>
             </div>

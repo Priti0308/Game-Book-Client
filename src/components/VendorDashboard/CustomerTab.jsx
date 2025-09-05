@@ -9,10 +9,10 @@ const CustomerTab = () => {
   const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", contact: "" });
   const token = localStorage.getItem("token");
-// Add state for pagination
-const [currentPage, setCurrentPage] = useState(1);
-const itemsPerPage = 10; // adjust as needed
-
+  // Add state for pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
 
 
   // Fetch customers on mount
@@ -52,7 +52,8 @@ const itemsPerPage = 10; // adjust as needed
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const addedCustomer = res.data.customer;
-      if (!addedCustomer.createdAt) addedCustomer.createdAt = new Date().toISOString();
+      if (!addedCustomer.createdAt)
+        addedCustomer.createdAt = new Date().toISOString();
       setCustomers((prev) => [...prev, addedCustomer]);
       setNewCustomer({ name: "", contact: "" });
       toast.success("Customer added successfully!");
@@ -80,7 +81,9 @@ const itemsPerPage = 10; // adjust as needed
         editForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setCustomers((prev) => prev.map(c => c._id === id ? res.data.customer : c));
+      setCustomers((prev) =>
+        prev.map((c) => (c._id === id ? res.data.customer : c))
+      );
       setEditingCustomerId(null);
       toast.success("Customer updated successfully");
     } catch (err) {
@@ -91,12 +94,13 @@ const itemsPerPage = 10; // adjust as needed
 
   // Delete customer
   const deleteCustomer = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this customer?")) return;
+    if (!window.confirm("Are you sure you want to delete this customer?"))
+      return;
     try {
       await axios.delete(`http://localhost:5000/api/customers/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      setCustomers((prev) => prev.filter(c => c._id !== id));
+      setCustomers((prev) => prev.filter((c) => c._id !== id));
       toast.success("Customer deleted successfully");
     } catch (err) {
       console.error(err);
@@ -105,41 +109,70 @@ const itemsPerPage = 10; // adjust as needed
   };
 
   // Filtered customers based on search
- const filteredCustomers = customers.filter(c =>
-  c.name.toLowerCase().includes(search.toLowerCase()) ||
-  c.contact.includes(search) ||
-  (c.srNo && c.srNo.toString() === search.trim())
-);
+  const filteredCustomers = customers.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.contact.includes(search) ||
+      (c.srNo && c.srNo.toString() === search.trim())
+  );
 
-// Compute paginated customers
-const indexOfLastItem = currentPage * itemsPerPage;
-const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
-const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  // Compute paginated customers
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentCustomers = filteredCustomers.slice(
+    indexOfFirstItem,
+    indexOfLastItem
+  );
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
   return (
     <div className="bg-white rounded-2xl shadow-xl p-10 max-w-4xl mx-auto space-y-8">
       <h2 className="text-3xl font-bold text-gray-900 mb-6">Customers</h2>
 
       {/* Add New Customer Form */}
-      <form onSubmit={handleAddCustomer} className="space-y-4 bg-gray-50 p-6 rounded-lg shadow-md">
+      <form
+        onSubmit={handleAddCustomer}
+        className="space-y-4 bg-gray-50 p-6 rounded-lg shadow-md"
+      >
         <h3 className="text-xl font-semibold mb-4">Add New Customer</h3>
         <div className="flex flex-col">
           <label className="font-semibold text-gray-700">Customer Name</label>
-          <input type="text" name="name" value={newCustomer.name} onChange={handleChange}
-            placeholder="Enter customer name" className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          <input
+            type="text"
+            name="name"
+            value={newCustomer.name}
+            onChange={handleChange}
+            placeholder="Enter customer name"
+            className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
         </div>
         <div className="flex flex-col">
           <label className="font-semibold text-gray-700">Contact Number</label>
-          <input type="text" name="contact" value={newCustomer.contact} onChange={handleChange}
-            placeholder="Enter contact number" className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          <input
+            type="text"
+            name="contact"
+            value={newCustomer.contact}
+            onChange={handleChange}
+            placeholder="Enter contact number"
+            className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
         </div>
-        <button type="submit" className="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-purple-700 transition">Add Customer</button>
+        <button
+          type="submit"
+          className="bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-purple-700 transition"
+        >
+          Add Customer
+        </button>
       </form>
 
       {/* Search */}
       <div className="mt-4">
-        <input type="text" placeholder="Search by Sr No, name or contact" value={search} onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-500" />
+        <input
+          type="text"
+          placeholder="Search by Sr No, name or contact"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-500"
+        />
       </div>
 
       {/* Existing Customers Table */}
@@ -155,65 +188,103 @@ const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
             </tr>
           </thead>
           <tbody>
-          {currentCustomers.length > 0 ? (
-  currentCustomers.map((customer, i) => (
-    <tr key={customer._id || i} className="hover:bg-gray-50">
-      <td className="py-2 px-4 border-b">{customer.srNo}</td>
-      <td className="py-2 px-4 border-b">
-        {editingCustomerId === customer._id ? (
-          <input type="text" name="name" value={editForm.name} onChange={handleEditChange}
-            className="border border-gray-300 rounded-lg p-1 w-full" />
-        ) : customer.name}
-      </td>
-      <td className="py-2 px-4 border-b">
-        {editingCustomerId === customer._id ? (
-          <input type="text" name="contact" value={editForm.contact} onChange={handleEditChange}
-            className="border border-gray-300 rounded-lg p-1 w-full" />
-        ) : customer.contact}
-      </td>
-      <td className="py-2 px-4 border-b space-y-2 sm:space-y-0 sm:space-x-2 flex flex-col sm:flex-row">
-        {editingCustomerId === customer._id ? (
-          <>
-            <button onClick={() => saveEdit(customer._id)} className="bg-green-500 text-white px-3 py-1 rounded w-full sm:w-auto">Save</button>
-            <button onClick={() => setEditingCustomerId(null)} className="bg-gray-300 px-3 py-1 rounded w-full sm:w-auto">Cancel</button>
-          </>
-        ) : (
-          <>
-            <button onClick={() => startEdit(customer)} className="bg-yellow-500 text-white px-3 py-1 rounded w-full sm:w-auto">Edit</button>
-            <button onClick={() => deleteCustomer(customer._id)} className="bg-red-500 text-white px-3 py-1 rounded w-full sm:w-auto">Delete</button>
-          </>
-        )}
-      </td>
-    </tr>
-  ))
-) : (
-  <tr>
-    <td colSpan="4" className="py-4 text-center text-gray-500">No customers found</td>
-  </tr>
-)}
-
+            {currentCustomers.length > 0 ? (
+              currentCustomers.map((customer, i) => (
+                <tr key={customer._id || i} className="hover:bg-gray-50">
+                  <td className="py-2 px-4 border-b">{customer.srNo}</td>
+                  <td className="py-2 px-4 border-b">
+                    {editingCustomerId === customer._id ? (
+                      <input
+                        type="text"
+                        name="name"
+                        value={editForm.name}
+                        onChange={handleEditChange}
+                        className="border border-gray-300 rounded-lg p-1 w-full"
+                      />
+                    ) : (
+                      customer.name
+                    )}
+                  </td>
+                  <td className="py-2 px-4 border-b">
+                    {editingCustomerId === customer._id ? (
+                      <input
+                        type="text"
+                        name="contact"
+                        value={editForm.contact}
+                        onChange={handleEditChange}
+                        className="border border-gray-300 rounded-lg p-1 w-full"
+                      />
+                    ) : (
+                      customer.contact
+                    )}
+                  </td>
+                  <td className="py-2 px-4 border-b space-y-2 sm:space-y-0 sm:space-x-2 flex flex-col sm:flex-row">
+                    {editingCustomerId === customer._id ? (
+                      <>
+                        <button
+                          onClick={() => saveEdit(customer._id)}
+                          className="bg-green-500 text-white px-3 py-1 rounded w-full sm:w-auto"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingCustomerId(null)}
+                          className="bg-gray-300 px-3 py-1 rounded w-full sm:w-auto"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => startEdit(customer)}
+                          className="bg-yellow-500 text-white px-3 py-1 rounded w-full sm:w-auto"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteCustomer(customer._id)}
+                          className="bg-red-500 text-white px-3 py-1 rounded w-full sm:w-auto"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="py-4 text-center text-gray-500">
+                  No customers found
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
         <div className="flex justify-between items-center mt-4">
-  <button
-    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-    disabled={currentPage === 1}
-    className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-  >
-    Previous
-  </button>
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+          >
+            Previous
+          </button>
 
-  <span>Page {currentPage} of {totalPages}</span>
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
 
-  <button
-    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-    disabled={currentPage === totalPages}
-    className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-  >
-    Next
-  </button>
-</div>
-
+          <button
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );
