@@ -80,13 +80,15 @@ const Login = () => {
         navigate("/vendor", { replace: true });
       }
     } catch (err) {
-      console.error(err);
-      if (role === "admin") {
-        toast.error("Incorrect username or password");
-      } else {
-        toast.error("Incorrect mobile number or password");
-      }
-    }
+  // Log the full error for debugging
+  console.error("Login failed:", err.response || err);
+
+  // Get the error message from the server's response, if it exists
+  const message = err.response?.data?.message || err.message;
+
+  // Show a more informative toast notification
+  toast.error(message);
+}
   };
 
   return (
