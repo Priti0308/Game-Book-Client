@@ -57,7 +57,7 @@ const AdminDashboard = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [editVendor, setEditVendor] = useState(null);
   const [newPassword, setNewPassword] = useState("");
-  
+
   const toggleSidebar = () => setCollapsed(!collapsed);
 
   const menu = [
@@ -229,16 +229,15 @@ const AdminDashboard = () => {
   const filteredVendors = vendors.filter((vendor) =>
     vendor.businessName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  
   const handleLogout = () => {
-    const role = localStorage.getItem("role"); // get current role
+    const role = localStorage.getItem("role"); 
 
-    // Clear auth/session
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("vendorId");
     localStorage.removeItem("vendorProfile");
 
-    // Redirect to correct login
     if (role === "admin") {
       navigate("/", { replace: true });
     } else if (role === "vendor") {
@@ -266,11 +265,12 @@ const AdminDashboard = () => {
         </div>
         <nav className="flex flex-col gap-2 p-2">
           {menu.map((item) => (
-            
             <button
               key={item.key}
               onClick={() => setCurrentSection(item.key)}
               className={`flex items-center gap-3 p-2 rounded-lg font-medium transition ${
+                collapsed ? "justify-center" : ""
+              } ${
                 currentSection === item.key
                   ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                   : "hover:bg-gray-200"
@@ -279,27 +279,28 @@ const AdminDashboard = () => {
               {item.icon}
               {!collapsed && <span>{item.label}</span>}
             </button>
-            
           ))}
-          
         </nav>
         <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 p-2 mt-2 rounded-lg font-medium text-red-600 hover:bg-red-100 transition"
+            onClick={handleLogout}
+            className={`flex items-center gap-3 p-2 mt-auto mb-2 mx-2 rounded-lg font-medium text-red-600 hover:bg-red-100 transition ${
+            collapsed ? "justify-center" : ""
+            }`}
         >
-          <FaTimesCircle />
-          {!collapsed && <span>Logout</span>}
+            <FaTimesCircle />
+            {!collapsed && <span>Logout</span>}
         </button>
       </div>
 
       {/* Main */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
         {currentSection === "dashboard" && (
           <div>
             <h2 className="text-2xl font-bold text-white mb-6">
               Dashboard Overview
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {/* RESPONSIVE: Cards now stack on small screens, 2-col on medium, 4-col on large */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-white rounded-xl p-6 shadow-lg">
                 <FaUsers className="text-purple-500 text-3xl mb-3" />
                 <h4 className="font-semibold">Total Vendors</h4>
@@ -372,7 +373,7 @@ const AdminDashboard = () => {
               />
               <button
                 type="submit"
-                className="bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-4 rounded-lg shadow hover:opacity-90"
+                className="bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-4 rounded-lg shadow hover:opacity-90 md:col-span-2"
                 disabled={loading}
               >
                 {loading ? "Adding..." : "Add Vendor"}
@@ -386,43 +387,46 @@ const AdminDashboard = () => {
             <h3 className="text-xl font-bold text-purple-600 mb-4">
               Pending Approvals
             </h3>
-            <table className="w-full border rounded">
-              <thead className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-                <tr>
-                  <th className="p-2">Name</th>
-                  <th className="p-2">Business</th>
-                  <th className="p-2">Mobile</th>
-                  <th className="p-2">Email</th>
-                  <th className="p-2">Address</th>
-                  <th className="p-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingVendors.map((v) => (
-                  <tr key={v._id} className="border-b">
-                    <td className="p-2">{v.name}</td>
-                    <td className="p-2">{v.businessName}</td>
-                    <td className="p-2">{v.mobile}</td>
-                    <td className="p-2">{v.email}</td>
-                    <td className="p-2">{v.address}</td>
-                    <td className="p-2 flex gap-2">
-                      <button
-                        className="bg-green-500 text-white p-2 rounded"
-                        onClick={() => handleApprove(v._id)}
-                      >
-                        <FaCheck />
-                      </button>
-                      <button
-                        className="bg-red-500 text-white p-2 rounded"
-                        onClick={() => handleReject(v._id)}
-                      >
-                        <FaTimes />
-                      </button>
-                    </td>
+            {/* RESPONSIVE: Added a wrapper for horizontal scrolling on small screens */}
+            <div className="overflow-x-auto">
+              <table className="w-full border rounded min-w-[600px]">
+                <thead className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                  <tr>
+                    <th className="p-2 text-left">Name</th>
+                    <th className="p-2 text-left">Business</th>
+                    <th className="p-2 text-left">Mobile</th>
+                    <th className="p-2 text-left">Email</th>
+                    <th className="p-2 text-left">Address</th>
+                    <th className="p-2 text-left">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pendingVendors.map((v) => (
+                    <tr key={v._id} className="border-b">
+                      <td className="p-2">{v.name}</td>
+                      <td className="p-2">{v.businessName}</td>
+                      <td className="p-2">{v.mobile}</td>
+                      <td className="p-2">{v.email}</td>
+                      <td className="p-2">{v.address}</td>
+                      <td className="p-2 flex gap-2">
+                        <button
+                          className="bg-green-500 text-white p-2 rounded"
+                          onClick={() => handleApprove(v._id)}
+                        >
+                          <FaCheck />
+                        </button>
+                        <button
+                          className="bg-red-500 text-white p-2 rounded"
+                          onClick={() => handleReject(v._id)}
+                        >
+                          <FaTimes />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -431,88 +435,97 @@ const AdminDashboard = () => {
             <h3 className="text-xl font-bold text-purple-600 mb-4">
               Manage Vendor Profiles
             </h3>
-            <div className="flex justify-between mb-3">
+             {/* RESPONSIVE: Search and export buttons stack on mobile */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
               <input
-                className="border rounded p-2 w-1/2"
-                placeholder="Search vendor..."
+                className="border rounded p-2 w-full md:w-1/2"
+                placeholder="Search by business name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <div className="flex gap-2">
                 <button
                   onClick={exportToExcel}
-                  className="bg-blue-500 text-white px-3 py-2 rounded"
+                  className="bg-blue-500 text-white px-3 py-2 rounded flex items-center gap-2"
                 >
                   <FaDownload /> Excel
                 </button>
                 <button
                   onClick={exportToPDF}
-                  className="bg-red-500 text-white px-3 py-2 rounded"
+                  className="bg-red-500 text-white px-3 py-2 rounded flex items-center gap-2"
                 >
                   <FaDownload /> PDF
                 </button>
               </div>
             </div>
-            <table className="w-full border rounded">
-              <thead className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-                <tr>
-                  <th className="p-2">Name</th>
-                  <th className="p-2">Business</th>
-                  <th className="p-2">Mobile</th>
-                  <th className="p-2">Address</th>
-                  <th className="p-2">Email</th>
-                  <th className="p-2">Status</th>
-                  <th className="p-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredVendors.map((v) => (
-                  <tr key={v._id} className="border-b">
-                    <td className="p-2">{v.name}</td>
-                    <td className="p-2">{v.businessName}</td>
-                    <td className="p-2">{v.mobile}</td>
-                    <td className="p-2">{v.address}</td>
-                    <td className="p-2">{v.email}</td>
-                    <td className="p-2">{v.status}</td>
-                    <td className="p-2 flex gap-2">
-                      <button
-                        className="bg-indigo-500 text-white px-2 py-1 rounded"
-                        onClick={() => handleEdit(v)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="bg-yellow-500 text-white px-2 py-1 rounded"
-                        onClick={() => handleChangePassword(v)}
-                      >
-                        Password
-                      </button>
-                      <button
-                        className="bg-red-500 text-white px-2 py-1 rounded"
-                        onClick={() => handleDelete(v._id)}
-                      >
-                        <FaTrash />
-                      </button>
-                    </td>
+            {/* RESPONSIVE: Added a wrapper for horizontal scrolling on small screens */}
+            <div className="overflow-x-auto">
+              <table className="w-full border rounded min-w-[800px]">
+                <thead className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                  <tr>
+                    <th className="p-2 text-left">Name</th>
+                    <th className="p-2 text-left">Business</th>
+                    <th className="p-2 text-left">Mobile</th>
+                    <th className="p-2 text-left">Address</th>
+                    <th className="p-2 text-left">Email</th>
+                    <th className="p-2 text-left">Status</th>
+                    <th className="p-2 text-left">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredVendors.map((v) => (
+                    <tr key={v._id} className="border-b">
+                      <td className="p-2">{v.name}</td>
+                      <td className="p-2">{v.businessName}</td>
+                      <td className="p-2">{v.mobile}</td>
+                      <td className="p-2">{v.address}</td>
+                      <td className="p-2">{v.email}</td>
+                      <td className="p-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            v.status === 'approved' ? 'bg-green-100 text-green-700' :
+                            v.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                        }`}>
+                            {v.status}
+                        </span>
+                      </td>
+                      <td className="p-2 flex flex-wrap gap-2">
+                        <button
+                          className="bg-indigo-500 text-white px-2 py-1 rounded text-sm"
+                          onClick={() => handleEdit(v)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="bg-yellow-500 text-white px-2 py-1 rounded text-sm"
+                          onClick={() => handleChangePassword(v)}
+                        >
+                          Password
+                        </button>
+                        <button
+                          className="bg-red-500 text-white px-2 py-1 rounded"
+                          onClick={() => handleDelete(v._id)}
+                        >
+                          <FaTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
 
+      {/* Edit Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
-          {/* Overlay */}
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
           <div
             className="fixed inset-0 bg-black bg-opacity-50"
             onClick={() => setShowEditModal(false)}
           ></div>
-
-          {/* Modal content */}
           <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-xl text-white w-full max-w-lg relative z-10">
-            {/* Header */}
             <div className="flex justify-between items-center p-4 border-b border-white/20">
               <h2 className="text-lg font-bold">Edit Vendor</h2>
               <button
@@ -522,8 +535,6 @@ const AdminDashboard = () => {
                 ✕
               </button>
             </div>
-
-            {/* Body */}
             <div className="p-4">
               {editVendor && (
                 <>
@@ -570,16 +581,16 @@ const AdminDashboard = () => {
                     className="w-full px-3 py-2 mb-3 rounded-lg text-gray-900"
                     value={editVendor.address}
                     onChange={(e) =>
-                      setEditVendor({ ...editVendor, address: e.target.value })
+                      setEditVendor({
+                        ...editVendor,
+                        address: e.target.value,
+                      })
                     }
                     placeholder="Address"
                   ></textarea>
                 </>
               )}
             </div>
-            
-            
-            {/* Footer */}
             <div className="flex justify-end space-x-2 p-4 border-t border-white/20">
               <button
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
@@ -594,27 +605,18 @@ const AdminDashboard = () => {
                 Save Changes
               </button>
             </div>
-            
           </div>
-          
-          
-          
         </div>
-        
-        
       )}
-      
+
+      {/* Password Modal */}
       {showPasswordModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
-          {/* Overlay */}
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
           <div
             className="fixed inset-0 bg-black bg-opacity-50"
             onClick={() => setShowPasswordModal(false)}
           ></div>
-
-          {/* Modal content */}
           <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-xl text-white w-full max-w-md relative z-10">
-            {/* Header */}
             <div className="flex justify-between items-center p-4 border-b border-white/20">
               <h2 className="text-lg font-bold">Change Password</h2>
               <button
@@ -624,8 +626,6 @@ const AdminDashboard = () => {
                 ✕
               </button>
             </div>
-
-            {/* Body */}
             <div className="p-4">
               <input
                 type="password"
@@ -635,8 +635,6 @@ const AdminDashboard = () => {
                 placeholder="Enter new password"
               />
             </div>
-
-            {/* Footer */}
             <div className="flex justify-end space-x-2 p-4 border-t border-white/20">
               <button
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
