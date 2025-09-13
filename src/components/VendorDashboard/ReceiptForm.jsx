@@ -119,36 +119,45 @@ const ReceiptForm = ({ businessName }) => {
   const finalTotal = remainingBalance + pendingAmount;
   const totalWithAdvance = (deduction + payment) + advanceAmount;
 
-  // **FIXED: SAVE BUTTON LOGIC WITH DETAILED ERROR LOGGING**
+  // ReceiptForm.js
+
+  // ✅ CORRECTED: SAVE BUTTON LOGIC
   const handleSave = async () => {
-    // This check is the most likely reason the button appears "not to work"
+    // 1. Validation: Ensure a customer is selected
     if (!formData.customerName || !formData.customerId) {
       toast.error("Please select a customer from the dropdown list.");
-      console.warn("Save stopped: No customer selected.");
       return;
     }
 
-    const newReceipt = {
-      ...formData,
+    // 2. Data to Send: Only send the raw user inputs.
+    // The backend will handle calculations and snapshots of names.
+    const receiptToSend = {
+      customerId: formData.customerId,
       date: dayjs(formData.date, "DD-MM-YYYY").toISOString(),
-      id: undefined,
+      day: formData.day,
+      morningIncome: Number(formData.morningIncome) || 0,
+      eveningIncome: Number(formData.eveningIncome) || 0,
+      payment: Number(formData.payment) || 0,
+      pendingAmount: Number(formData.pendingAmount) || 0,
+      advanceAmount: Number(formData.advanceAmount) || 0,
+      
+      // Send calculated values your backend expects
       totalIncome: totalIncome.toFixed(2),
       deduction: deduction.toFixed(2),
       afterDeduction: afterDeduction.toFixed(2),
       remainingBalance: remainingBalance.toFixed(2),
       finalTotal: finalTotal.toFixed(2),
-      totalWithAdvance: totalWithAdvance.toFixed(2),
+      totalWithAdvance: totalWithAdvance.toFixed(2)
     };
 
     try {
-      console.log("Attempting to save receipt for:", formData.customerName);
       const response = await fetch(`${API_BASE_URI}/api/receipts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(newReceipt),
+        body: JSON.stringify(receiptToSend),
       });
 
       if (!response.ok) {
@@ -156,10 +165,12 @@ const ReceiptForm = ({ businessName }) => {
         throw new Error(errorData.message || `Failed to save receipt. Status: ${response.status}`);
       }
 
-      const savedReceiptResponse = await response.json();
-      setReceipts([savedReceiptResponse.data, ...receipts]);
+      const savedResponse = await response.json();
+
+      // 3. Response Handling: Use the 'receipt' key from the controller's response
+      // This was the main point of failure.
+      setReceipts([savedResponse.receipt, ...receipts]);
       toast.success("Receipt saved successfully!");
-      console.log("Receipt saved successfully:", savedReceiptResponse.data);
 
       // Reset form
       setFormData({
@@ -170,7 +181,6 @@ const ReceiptForm = ({ businessName }) => {
 
     } catch (error) {
       toast.error(error.message);
-      // This will show the detailed error in your browser console (F12)
       console.error("Detailed error saving receipt:", error);
     }
   };
