@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+dayjs.extend(customParseFormat);
+
 import { FaEdit, FaTrashAlt, FaPrint } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-// Ensure your API endpoint is correct
 const API_BASE_URI = "https://game-book.onrender.com";
 
 const ReceiptForm = ({ businessName }) => {
@@ -13,7 +15,7 @@ const ReceiptForm = ({ businessName }) => {
     return savedData
       ? JSON.parse(savedData)
       : {
-          id: null,
+          _id: null,
           businessName: businessName || "आपले दुकान",
           customerId: "",
           customerName: "",
@@ -33,35 +35,30 @@ const ReceiptForm = ({ businessName }) => {
   const printRef = useRef();
   const token = localStorage.getItem("token");
 
-  // **FIXED: FETCH CUSTOMERS WITH DETAILED ERROR LOGGING**
+  // Fetch customers with detailed error logging
   useEffect(() => {
     const fetchCustomers = async () => {
       if (!token) {
-        console.error("No token found. Please log in.");
         toast.error("You are not logged in.");
         return;
       }
       try {
-        console.log("Attempting to fetch customers...");
         const response = await fetch(`${API_BASE_URI}/api/customers`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!response.ok) {
-          // Log the server's error message if available
           const errorBody = await response.json();
           throw new Error(errorBody.message || `HTTP error! Status: ${response.status}`);
         }
 
         const data = await response.json();
         setCustomerList(data.customers || []);
-        console.log("Successfully fetched customers:", data.customers);
         if (!data.customers || data.customers.length === 0) {
-            toast.info("No customers found. Please add a customer first.");
+          toast.info("No customers found. Please add a customer first.");
         }
       } catch (error) {
         toast.error("Failed to fetch customer data.");
-        // This console.error will show the detailed error in the browser console (F12)
         console.error("Detailed error fetching customers:", error);
       }
     };
@@ -119,19 +116,17 @@ const ReceiptForm = ({ businessName }) => {
   const finalTotal = remainingBalance + pendingAmount;
   const totalWithAdvance = (deduction + payment) + advanceAmount;
 
-  // ReceiptForm.js
 
-  // ✅ CORRECTED: SAVE BUTTON LOGIC
   const handleSave = async () => {
-    // 1. Validation: Ensure a customer is selected
     if (!formData.customerName || !formData.customerId) {
       toast.error("Please select a customer from the dropdown list.");
       return;
     }
-
-    // 2. Data to Send: Only send the raw user inputs.
-    // The backend will handle calculations and snapshots of names.
+    
     const receiptToSend = {
+      // Add missing fields required by the backend schema
+      businessName: formData.businessName,
+      customerName: formData.customerName,
       customerId: formData.customerId,
       date: dayjs(formData.date, "DD-MM-YYYY").toISOString(),
       day: formData.day,
@@ -166,21 +161,23 @@ const ReceiptForm = ({ businessName }) => {
       }
 
       const savedResponse = await response.json();
+      
+      // Use the correct key from the backend response ('receipt' or 'data')
+      // Let's check for both to be safe
+      const newReceipt = savedResponse.receipt || savedResponse.data;
 
-      // 3. Response Handling: Use the 'receipt' key from the controller's response
-      // This was the main point of failure.
-      setReceipts([savedResponse.receipt, ...receipts]);
+      setReceipts([newReceipt, ...receipts]);
       toast.success("Receipt saved successfully!");
 
       // Reset form
       setFormData({
-        id: null, businessName: businessName || "आपले दुकान", customerId: "", customerName: "",
+        _id: null, businessName: businessName || "आपले दुकान", customerId: "", customerName: "",
         day: dayjs().format("dddd"), date: dayjs().format("DD-MM-YYYY"), morningIncome: "",
         eveningIncome: "", payment: "", pendingAmount: "", advanceAmount: "",
       });
 
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Error saving receipt");
       console.error("Detailed error saving receipt:", error);
     }
   };
@@ -209,7 +206,7 @@ const ReceiptForm = ({ businessName }) => {
         date: dayjs(receiptToEdit.date).format('DD-MM-YYYY')
     };
     setFormData(formattedReceipt);
-    toast.info("Editing receipt. Click 'Save' to create a new entry with changes.");
+    // toast.info("Editing receipt. Click 'Save' to create a new entry with changes.");
   };
   
   const handlePrint = () => window.print();
@@ -229,7 +226,6 @@ const ReceiptForm = ({ businessName }) => {
     r.finalTotal.toString().includes(searchTerm)
   );
 
-  // --- JSX / RENDERED OUTPUT (No changes needed here) ---
   return (
     <div className="min-h-screen bg-gray-100 p-8 font-sans text-gray-800">
         <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; } .no-print { display: none !important; } }`}</style>
@@ -257,9 +253,7 @@ const ReceiptForm = ({ businessName }) => {
                 </div>
                 {/* The rest of the table and form inputs... */}
                 <table className="w-full text-sm border-collapse">
-                    {/* Table Head */}
                     <thead><tr className="bg-gray-100"><th className="border p-2 text-center">ओ.</th><th className="border p-2 text-center">रक्कम</th><th className="border p-2 text-center">ओ.</th><th className="border p-2 text-center">जोड</th><th className="border p-2 text-center">को.</th><th className="border p-2 text-center">पान</th></tr></thead>
-                    {/* Table Body */}
                     <tbody>
                         <tr><td className="border p-2">आ.</td><td className="border p-2 text-right"><input type="number" name="morningIncome" value={formData.morningIncome} onChange={handleChange} className="w-full text-right bg-transparent border-b border-gray-300 focus:outline-none"/></td><td className="border p-2"></td><td className="border p-2"></td><td className="border p-2"></td><td className="border p-2"></td></tr>
                         <tr><td className="border p-2">कु.</td><td className="border p-2 text-right"><input type="number" name="eveningIncome" value={formData.eveningIncome} onChange={handleChange} className="w-full text-right bg-transparent border-b border-gray-300 focus:outline-none"/></td><td className="border p-2"></td><td className="border p-2"></td><td className="border p-2"></td><td className="border p-2"></td></tr>
@@ -284,7 +278,7 @@ const ReceiptForm = ({ businessName }) => {
             <div className="no-print flex justify-center mt-6 space-x-4">
                 <button onClick={handleSave} className="px-6 py-2 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-colors">Save Receipt</button>
                 <button onClick={handlePrint} className="px-6 py-2 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 transition-colors"><FaPrint className="inline-block mr-2"/> Print</button>
-                <button onClick={() => setFormData({ id: null, businessName: businessName || "आपले दुकान", customerId: "", customerName: "", day: dayjs().format("dddd"), date: dayjs().format("DD-MM-YYYY"), morningIncome: "", eveningIncome: "", payment: "", pendingAmount: "", advanceAmount: "" })} className="px-6 py-2 bg-gray-500 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors">Clear Form</button>
+                <button onClick={() => setFormData({ _id: null, businessName: businessName || "आपले दुकान", customerId: "", customerName: "", day: dayjs().format("dddd"), date: dayjs().format("DD-MM-YYYY"), morningIncome: "", eveningIncome: "", payment: "", pendingAmount: "", advanceAmount: "" })} className="px-6 py-2 bg-gray-500 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors">Clear Form</button>
             </div>
         </div>
 
