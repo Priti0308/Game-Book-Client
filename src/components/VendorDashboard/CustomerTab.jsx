@@ -2,27 +2,32 @@ import React, { useState, useEffect } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import axios from "axios";
 import { FaEdit, FaTrashAlt, FaSpinner, FaPlus, FaSave, FaTimes, FaUserPlus } from "react-icons/fa";
+import 'react-toastify/dist/ReactToastify.css'; // Don't forget to import the CSS for toastify
 
 // Define the base API URL
 const API_BASE_URI = "https://game-book.onrender.com";
 
 const CustomerTab = () => {
+  // --- STATE MANAGEMENT ---
   const [customers, setCustomers] = useState([]);
   const [newCustomer, setNewCustomer] = useState({ name: "", contact: "" });
   const [search, setSearch] = useState("");
   const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", contact: "" });
   const [loading, setLoading] = useState(true);
-  
-  const token = localStorage.getItem("token");
-
-  // Add state for pagination
+  const [isSubmitting, setIsSubmitting] = useState(false); // For disabling button on add
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
-  // Fetch customers on mount
+  const token = localStorage.getItem("token"); // Ensure key matches what's set at login
+
+  // --- DATA FETCHING ---
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+        setLoading(false);
+        toast.error("You are not logged in. Please log in to view customers.");
+        return;
+    }
 
     const fetchCustomers = async () => {
       try {
@@ -33,7 +38,7 @@ const CustomerTab = () => {
         setCustomers(res.data.customers || []);
       } catch (err) {
         console.error("Error fetching customers:", err);
-        toast.error("Failed to fetch customers.");
+        toast.error(err.response?.data?.message || "Failed to fetch customers.");
       } finally {
         setLoading(false);
       }
@@ -42,6 +47,7 @@ const CustomerTab = () => {
     fetchCustomers();
   }, [token]);
 
+  // --- EVENT HANDLERS ---
   const handleChange = (e) => {
     const { name, value } = e.target;
     setNewCustomer((prev) => ({ ...prev, [name]: value }));
@@ -53,24 +59,25 @@ const CustomerTab = () => {
       toast.error("Please fill all required fields");
       return;
     }
+    
+    setIsSubmitting(true); // Disable button
     try {
       const res = await axios.post(
         `${API_BASE_URI}/api/customers`,
         newCustomer,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const addedCustomer = res.data.customer;
-      if (!addedCustomer.createdAt) addedCustomer.createdAt = new Date().toISOString();
-      setCustomers((prev) => [addedCustomer, ...prev]); // Add to the top of the list
+      setCustomers((prev) => [res.data.customer, ...prev]);
       setNewCustomer({ name: "", contact: "" });
       toast.success("Customer added successfully!");
     } catch (err) {
       console.error("Error adding customer:", err);
       toast.error(err.response?.data?.message || "Failed to add customer");
+    } finally {
+      setIsSubmitting(false); // Re-enable button
     }
   };
 
-  // Edit customer
   const startEdit = (customer) => {
     setEditingCustomerId(customer._id);
     setEditForm({ name: customer.name, contact: customer.contact });
@@ -97,49 +104,36 @@ const CustomerTab = () => {
     }
   };
 
-  // Delete customer directly
   const handleDeleteCustomer = async (customerToDelete) => {
     if (!customerToDelete) return;
-    try {
-      await axios.delete(`${API_BASE_URI}/api/customers/${customerToDelete._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setCustomers((prev) => prev.filter(c => c._id !== customerToDelete._id));
-      toast.success("Customer deleted successfully");
-    } catch (err) {
-      // --- ENHANCED ERROR LOGGING ---
-      console.error("Detailed error deleting customer:", err); 
-      if (err.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        console.error("Error data:", err.response.data);
-        console.error("Error status:", err.response.status);
-        const errorMessage = err.response.data?.message || 'Server error. Please check console.';
-        toast.error(`Failed to delete: ${errorMessage}`);
-      } else if (err.request) {
-        // The request was made but no response was received
-        console.error("Error request:", err.request);
-        toast.error("Failed to delete: No response from server.");
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        console.error('Error message:', err.message);
-        toast.error("Failed to delete: An unexpected error occurred.");
-      }
+
+    // Added confirmation dialog for better UX
+    if (window.confirm(`Are you sure you want to delete ${customerToDelete.name}?`)) {
+        try {
+            await axios.delete(`${API_BASE_URI}/api/customers/${customerToDelete._id}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            setCustomers((prev) => prev.filter(c => c._id !== customerToDelete._id));
+            toast.success("Customer deleted successfully");
+        } catch (err) {
+            console.error("Error deleting customer:", err);
+            toast.error(err.response?.data?.message || "Failed to delete customer.");
+        }
     }
   };
 
-  // Filtered customers based on search
+  // --- DERIVED STATE & COMPUTATIONS ---
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     (c.contact && c.contact.toString().includes(search))
   );
 
-  // Compute paginated customers
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
 
+  // --- RENDER LOGIC ---
   if (loading) {
     return (
       <div className="flex justify-center items-center h-full p-10">
@@ -168,8 +162,16 @@ const CustomerTab = () => {
                 placeholder="Enter contact number" className="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
         </div>
-        <button type="submit" className="w-full sm:w-auto bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-purple-700 transition flex items-center justify-center gap-2">
-            <FaPlus /> Add Customer
+        <button 
+          type="submit" 
+          disabled={isSubmitting}
+          className="w-full sm:w-auto bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-purple-700 transition flex items-center justify-center gap-2 disabled:bg-purple-400 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? (
+            <><FaSpinner className="animate-spin" /> Adding...</>
+          ) : (
+            <><FaPlus /> Add Customer</>
+          )}
         </button>
       </form>
 
@@ -269,4 +271,3 @@ const CustomerTab = () => {
 };
 
 export default CustomerTab;
-

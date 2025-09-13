@@ -42,13 +42,22 @@ const VendorDashboard = () => {
   const toggleSidebar = () => setCollapsed(!collapsed);
 
   // Form data for editing profile
-  const [formData, setFormData] = useState({
-    businessName: vendor?.businessName || "",
-    name: vendor?.name || "",
-    email: vendor?.email || "",
-    mobile: vendor?.mobile || "",
-    address: vendor?.address || "",
-  });
+  // const [formData, setFormData] = useState({
+  //   businessName: vendor?.businessName || "",
+  //   name: vendor?.name || "",
+  //   email: vendor?.email || "",
+  //   mobile: vendor?.mobile || "",
+  //   address: vendor?.address || "",
+  // });
+
+
+const [formData, setFormData] = useState({
+  businessName: "",
+  name: "",
+  email: "",
+  mobile: "",
+  address: "",
+});
 
   // Reports state
   const [reportType, setReportType] = useState("daily");
@@ -82,56 +91,88 @@ const VendorDashboard = () => {
     // Remove only auth info
     localStorage.removeItem("token");
     localStorage.removeItem("role");
+    localStorage.removeItem("vendorProfile"); // Also clear profile cache
 
     // Force reload to login page, blocks back button access
     window.location.replace("/");
   };
 
+  // ✅ CORRECTED useEffect TO FETCH VENDOR PROFILE
   useEffect(() => {
     const token = localStorage.getItem("token");
     const role = localStorage.getItem("role");
 
+    // Redirect if not a logged-in vendor
     if (!token || role !== "vendor") {
       window.location.replace("/");
       return;
     }
 
-    let vendorData = {};
-    try {
-      vendorData = JSON.parse(localStorage.getItem("vendorProfile")) || {};
-    } catch (err) {
-      console.error("Error parsing vendor profile:", err);
-      vendorData = {};
-    }
+    // --- THIS IS THE NEW PART ---
+    // Create an async function to fetch the profile
+    const fetchVendorProfile = async () => {
+      try {
+        // Make a GET request to your backend endpoint
+        const response = await fetch(`${API_BASE_URI}/api/vendors/me`, {
+          method: "GET",
+          headers: {
+            // IMPORTANT: Add the Authorization header
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-    setVendor(vendorData);
-    setLoading(false); // Set loading to false after attempting to get vendor data
-  }, []);
+        if (!response.ok) {
+          // If the server returns an error (like 401), handle it
+          throw new Error("Failed to fetch profile. Please log in again.");
+        }
 
-  useEffect(() => {
-    if (vendor) {
-      setFormData({
-        businessName: vendor.businessName || "",
-        name: vendor.name || "",
-        email: vendor.email || "",
-        mobile: vendor.mobile || "",
-        address: vendor.address || "",
-      });
-    }
-  }, [vendor]);
+        const data = await response.json();
+
+        // Set the vendor state with the data from the API
+        setVendor(data.vendor);
+
+        // You can also save it to localStorage if you want to cache it
+        localStorage.setItem("vendorProfile", JSON.stringify(data.vendor));
+      } catch (error) {
+        console.error("Error fetching vendor profile:", error);
+        toast.error(error.message);
+        // Optional: Log the user out if their token is invalid
+        // handleLogout();
+      } finally {
+        // Set loading to false after the API call is complete
+        setLoading(false);
+      }
+    };
+
+    fetchVendorProfile(); // Call the function to start fetching data
+  }, []); // The empty dependency array [] ensures this runs only once on mount
+
+  // useEffect(() => {
+  //   if (vendor) {
+  //     setFormData({
+  //       businessName: vendor.businessName || "",
+  //       name: vendor.name || "",
+  //       email: vendor.email || "",
+  //       mobile: vendor.mobile || "",
+  //       address: vendor.address || "",
+  //     });
+  //   }
+  // }, [vendor]);
 
   // When user clicks "Edit"
-  const handleEditClick = () => {
-    setFormData({
-      businessName: vendor.businessName,
-      name: vendor.name,
-      email: vendor.email,
-      mobile: vendor.mobile,
-      address: vendor.address,
-    });
-    setEditMode(true);
-  };
+  // VendorDashboard.js
 
+const handleEditClick = () => {
+  setFormData({
+    businessName: vendor.businessName,
+    name: vendor.name,
+    email: vendor.email,
+    mobile: vendor.mobile,
+    address: vendor.address,
+  });
+  setEditMode(true);
+};
   // Update form state on input change
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -163,6 +204,7 @@ const VendorDashboard = () => {
 
       toast.success("Profile updated successfully!");
       setVendor(data.vendor); // update local vendor state
+      localStorage.setItem("vendorProfile", JSON.stringify(data.vendor)); // Update cache
       setEditMode(false);
     } catch (err) {
       console.error(" Error updating profile:", err);
@@ -205,7 +247,7 @@ const VendorDashboard = () => {
 
     fetchReport();
   }, [reportType, selectedDate, selectedMonth, selectedCustomer]);
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -297,7 +339,7 @@ const VendorDashboard = () => {
               </div>
 
               <div
-                onClick={() => navigate("/create-receipt")}
+                onClick={() => setCurrentSection("viewReceipts")}
                 className="bg-blue-600 text-white rounded-xl p-6 text-center font-medium shadow-md hover:bg-blue-700 cursor-pointer transition max-w-xs w-full"
               >
                 View Receipts
@@ -490,8 +532,9 @@ const VendorDashboard = () => {
           />
         )}
 
-        {currentSection === "createReceipt" && <ReceiptForm businessName={vendor?.businessName} />}
-
+        {currentSection === "createReceipt" && (
+          <ReceiptForm businessName={vendor?.businessName} />
+        )}
 
         {currentSection === "viewReceipts" && <ViewReceipts />}
         {currentSection === "reports" && <Report />}
@@ -503,7 +546,7 @@ const VendorDashboard = () => {
               <h1 className="text-3xl font-bold text-purple-600 mb-2">
                 Varad Consultants & Analyst Pvt. Ltd
               </h1>
-              <p className="text-gray-700 text-lg" >
+              <p className="text-gray-700 text-lg">
                 How can we help you today?
               </p>
             </div>
