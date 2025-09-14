@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 dayjs.extend(customParseFormat);
-
 import { FaEdit, FaTrashAlt, FaPrint } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -118,35 +117,61 @@ const ReceiptForm = ({ businessName }) => {
 
 
   const handleSave = async () => {
-    if (!formData.customerName || !formData.customerId) {
-      toast.error("Please select a customer from the dropdown list.");
-      return;
-    }
-    
-    const receiptToSend = {
-      // Add missing fields required by the backend schema
+  if (!formData.customerName || !formData.customerId) {
+    toast.error("Please select a customer from the dropdown list.");
+    return;
+  }
+
+  const receiptToSend = {
       businessName: formData.businessName,
       customerName: formData.customerName,
       customerId: formData.customerId,
       date: dayjs(formData.date, "DD-MM-YYYY").toISOString(),
       day: formData.day,
+      // Input fields (already correctly converted to numbers)
       morningIncome: Number(formData.morningIncome) || 0,
       eveningIncome: Number(formData.eveningIncome) || 0,
       payment: Number(formData.payment) || 0,
       pendingAmount: Number(formData.pendingAmount) || 0,
       advanceAmount: Number(formData.advanceAmount) || 0,
       
-      // Send calculated values your backend expects
-      totalIncome: totalIncome.toFixed(2),
-      deduction: deduction.toFixed(2),
-      afterDeduction: afterDeduction.toFixed(2),
-      remainingBalance: remainingBalance.toFixed(2),
-      finalTotal: finalTotal.toFixed(2),
-      totalWithAdvance: totalWithAdvance.toFixed(2)
+      // *** FIX: Send the raw number variables, not strings from .toFixed(2) ***
+      totalIncome: totalIncome,
+      deduction: deduction,
+      afterDeduction: afterDeduction,
+      remainingBalance: remainingBalance,
+      finalTotal: finalTotal,
+      totalWithAdvance: totalWithAdvance,
     };
 
-    try {
-      const response = await fetch(`${API_BASE_URI}/api/receipts`, {
+  try {
+    let response;
+    let savedResponse;
+
+    if (formData._id) {
+      // UPDATE existing receipt
+      response = await fetch(`${API_BASE_URI}/api/receipts/${formData._id}`, {
+        method: "PUT", // or PATCH depending on backend
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(receiptToSend),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to update receipt. Status: ${response.status}`);
+      }
+
+      savedResponse = await response.json();
+      const updatedReceipt = savedResponse.receipt || savedResponse.data;
+
+      setReceipts(receipts.map((r) => (r._id === updatedReceipt._id ? updatedReceipt : r)));
+      toast.success("Receipt updated successfully!");
+    } else {
+      // CREATE new receipt
+      response = await fetch(`${API_BASE_URI}/api/receipts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -160,27 +185,32 @@ const ReceiptForm = ({ businessName }) => {
         throw new Error(errorData.message || `Failed to save receipt. Status: ${response.status}`);
       }
 
-      const savedResponse = await response.json();
-      
-      // Use the correct key from the backend response ('receipt' or 'data')
-      // Let's check for both to be safe
+      savedResponse = await response.json();
       const newReceipt = savedResponse.receipt || savedResponse.data;
 
       setReceipts([newReceipt, ...receipts]);
       toast.success("Receipt saved successfully!");
-
-      // Reset form
-      setFormData({
-        _id: null, businessName: businessName || "आपले दुकान", customerId: "", customerName: "",
-        day: dayjs().format("dddd"), date: dayjs().format("DD-MM-YYYY"), morningIncome: "",
-        eveningIncome: "", payment: "", pendingAmount: "", advanceAmount: "",
-      });
-
-    } catch (error) {
-      toast.error(error.message || "Error saving receipt");
-      console.error("Detailed error saving receipt:", error);
     }
-  };
+
+    // Reset form after save/update
+    setFormData({
+      _id: null,
+      businessName: businessName || "आपले दुकान",
+      customerId: "",
+      customerName: "",
+      day: dayjs().format("dddd"),
+      date: dayjs().format("DD-MM-YYYY"),
+      morningIncome: "",
+      eveningIncome: "",
+      payment: "",
+      pendingAmount: "",
+      advanceAmount: "",
+    });
+  } catch (error) {
+    toast.error(error.message || "Error saving receipt");
+    console.error("Detailed error saving receipt:", error);
+  }
+};
 
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this receipt?")) {

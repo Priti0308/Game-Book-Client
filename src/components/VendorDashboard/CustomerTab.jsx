@@ -1,54 +1,63 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import axios from "axios";
-import { FaEdit, FaTrashAlt, FaSpinner, FaPlus, FaSave, FaTimes, FaUserPlus } from "react-icons/fa";
-import 'react-toastify/dist/ReactToastify.css'; // Don't forget to import the CSS for toastify
+import {
+  FaEdit,
+  FaTrashAlt,
+  FaSpinner,
+  FaSave,
+  FaTimes,
+  FaUserPlus,
+} from "react-icons/fa";
 
-// Define the base API URL
+// API base URL - It's good practice to have this in a config file
 const API_BASE_URI = "https://game-book.onrender.com";
 
 const CustomerTab = () => {
   // --- STATE MANAGEMENT ---
   const [customers, setCustomers] = useState([]);
-  const [newCustomer, setNewCustomer] = useState({ name: "", contact: "" });
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    contact: "",
+    address: "",
+  });
   const [search, setSearch] = useState("");
   const [editingCustomerId, setEditingCustomerId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", contact: "" });
+  const [editForm, setEditForm] = useState({ name: "", contact: "", address: "" });
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false); // For disabling button on add
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  
-  const token = localStorage.getItem("token"); // Ensure key matches what's set at login
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- DATA FETCHING ---
-  useEffect(() => {
+  // Memoize the token to avoid re-running useEffect unnecessarily
+  const token = localStorage.getItem("token");
+
+  // --- API CALLS ---
+  const fetchCustomers = useCallback(async () => {
     if (!token) {
-        setLoading(false);
-        toast.error("You are not logged in. Please log in to view customers.");
-        return;
+      setLoading(false);
+      toast.error("Authentication error. Please log in again.");
+      return;
     }
-
-    const fetchCustomers = async () => {
-      try {
-        setLoading(true);
-        const res = await axios.get(`${API_BASE_URI}/api/customers`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCustomers(res.data.customers || []);
-      } catch (err) {
-        console.error("Error fetching customers:", err);
-        toast.error(err.response?.data?.message || "Failed to fetch customers.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCustomers();
+    try {
+      setLoading(true);
+      const res = await axios.get(`${API_BASE_URI}/api/customers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const sortedCustomers = (res.data.customers || []).sort((a, b) => a.srNo - b.srNo);
+      setCustomers(sortedCustomers);
+    } catch (err) {
+      console.error("Error fetching customers:", err);
+      toast.error(err.response?.data?.message || "Failed to fetch customers.");
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
   // --- EVENT HANDLERS ---
-  const handleChange = (e) => {
+  const handleNewCustomerChange = (e) => {
     const { name, value } = e.target;
     setNewCustomer((prev) => ({ ...prev, [name]: value }));
   };
@@ -56,31 +65,33 @@ const CustomerTab = () => {
   const handleAddCustomer = async (e) => {
     e.preventDefault();
     if (!newCustomer.name || !newCustomer.contact) {
-      toast.error("Please fill all required fields");
+      toast.warn("Customer Name and Contact are required.");
       return;
     }
-    
-    setIsSubmitting(true); // Disable button
+
+    setIsSubmitting(true);
     try {
-      const res = await axios.post(
-        `${API_BASE_URI}/api/customers`,
-        newCustomer,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setCustomers((prev) => [res.data.customer, ...prev]);
-      setNewCustomer({ name: "", contact: "" });
+      await axios.post(`${API_BASE_URI}/api/customers`, newCustomer, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchCustomers();
+      setNewCustomer({ name: "", contact: "", address: "" });
       toast.success("Customer added successfully!");
     } catch (err) {
       console.error("Error adding customer:", err);
-      toast.error(err.response?.data?.message || "Failed to add customer");
+      toast.error(err.response?.data?.message || "Failed to add customer.");
     } finally {
-      setIsSubmitting(false); // Re-enable button
+      setIsSubmitting(false);
     }
   };
 
   const startEdit = (customer) => {
     setEditingCustomerId(customer._id);
-    setEditForm({ name: customer.name, contact: customer.contact });
+    setEditForm({
+      name: customer.name,
+      contact: customer.contact,
+      address: customer.address || "",
+    });
   };
 
   const handleEditChange = (e) => {
@@ -95,176 +106,275 @@ const CustomerTab = () => {
         editForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setCustomers((prev) => prev.map(c => c._id === id ? res.data.customer : c));
+      setCustomers((prev) =>
+        prev.map((c) => (c._id === id ? res.data.customer : c))
+      );
       setEditingCustomerId(null);
-      toast.success("Customer updated successfully");
+      toast.success("Customer updated successfully!");
     } catch (err) {
       console.error("Error updating customer:", err);
-      toast.error("Failed to update customer");
+      toast.error(err.response?.data?.message || "Failed to update customer.");
     }
   };
 
   const handleDeleteCustomer = async (customerToDelete) => {
     if (!customerToDelete) return;
 
-    // Added confirmation dialog for better UX
-    if (window.confirm(`Are you sure you want to delete ${customerToDelete.name}?`)) {
-        try {
-            await axios.delete(`${API_BASE_URI}/api/customers/${customerToDelete._id}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            setCustomers((prev) => prev.filter(c => c._id !== customerToDelete._id));
-            toast.success("Customer deleted successfully");
-        } catch (err) {
-            console.error("Error deleting customer:", err);
-            toast.error(err.response?.data?.message || "Failed to delete customer.");
-        }
+    if (
+      window.confirm(
+        `Are you sure you want to delete ${customerToDelete.name}? This action cannot be undone.`
+      )
+    ) {
+      try {
+        await axios.delete(
+          `${API_BASE_URI}/api/customers/${customerToDelete._id}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setCustomers((prev) =>
+          prev.filter((c) => c._id !== customerToDelete._id)
+        );
+        toast.success("Customer deleted successfully.");
+      } catch (err) {
+        console.error("Error deleting customer:", err);
+        toast.error(err.response?.data?.message || "Failed to delete customer.");
+      }
     }
   };
 
-  // --- DERIVED STATE & COMPUTATIONS ---
-  const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.contact && c.contact.toString().includes(search))
-  );
+  // --- DERIVED STATE ---
+  const customersWithDisplaySrNo = customers.map((customer, index) => ({
+    ...customer,
+    displaySrNo: index + 1,
+  }));
 
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const filteredCustomers = customersWithDisplaySrNo.filter((customer) => {
+    const searchTerm = search.toLowerCase();
+    return (
+      customer.name.toLowerCase().includes(searchTerm) ||
+      customer.displaySrNo.toString().includes(searchTerm)
+    );
+  });
 
   // --- RENDER LOGIC ---
   if (loading) {
     return (
       <div className="flex justify-center items-center h-full p-10">
         <FaSpinner className="animate-spin text-purple-600 text-4xl" />
+        <p className="ml-3 text-lg text-gray-700">Loading Customers...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-10 w-full max-w-5xl mx-auto space-y-8">
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
-      <h2 className="text-3xl font-bold text-gray-900 mb-6">Manage Customers</h2>
+    <div className="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8">
+      <ToastContainer position="top-right" autoClose={3000} />
+      <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">Customer Management</h1>
 
-      {/* Add New Customer Form */}
-      <form onSubmit={handleAddCustomer} className="space-y-4 bg-gray-50 p-4 sm:p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2"><FaUserPlus />Add New Customer</h3>
-        <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-                <label className="font-semibold text-gray-700 block mb-1">Customer Name</label>
-                <input type="text" name="name" value={newCustomer.name} onChange={handleChange}
-                placeholder="Enter customer name" className="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            </div>
-            <div className="flex-1">
-                <label className="font-semibold text-gray-700 block mb-1">Contact Number</label>
-                <input type="text" name="contact" value={newCustomer.contact} onChange={handleChange}
-                placeholder="Enter contact number" className="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            </div>
-        </div>
-        <button 
-          type="submit" 
-          disabled={isSubmitting}
-          className="w-full sm:w-auto bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-purple-700 transition flex items-center justify-center gap-2 disabled:bg-purple-400 disabled:cursor-not-allowed"
+        {/* ADD CUSTOMER FORM */}
+        <form
+          onSubmit={handleAddCustomer}
+          className="mb-8 p-4 border rounded-lg bg-gray-50"
         >
-          {isSubmitting ? (
-            <><FaSpinner className="animate-spin" /> Adding...</>
-          ) : (
-            <><FaPlus /> Add Customer</>
-          )}
-        </button>
-      </form>
+          <h2 className="text-lg font-semibold mb-3 text-gray-700 flex items-center gap-2">
+            <FaUserPlus className="text-purple-600" /> Add New Customer
+          </h2>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div>
+              <label className="font-semibold text-gray-600 block mb-1 text-sm">
+                Sr.No
+              </label>
+              <input
+                type="text"
+                value={customers.length + 1}
+                disabled
+                className="border border-gray-300 rounded-lg p-2 w-full bg-gray-100 cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="font-semibold text-gray-600 block mb-1 text-sm">
+                Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={newCustomer.name}
+                onChange={handleNewCustomerChange}
+                placeholder="e.g., John Doe"
+                className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition"
+              />
+            </div>
+            <div>
+              <label className="font-semibold text-gray-600 block mb-1 text-sm">
+                Contact <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="contact"
+                value={newCustomer.contact}
+                onChange={handleNewCustomerChange}
+                placeholder="e.g., 9876543210"
+                className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition"
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="font-semibold text-gray-600 block mb-1 text-sm">
+              Address
+            </label>
+            <input
+              type="text"
+              name="address"
+              value={newCustomer.address}
+              onChange={handleNewCustomerChange}
+              placeholder="e.g., 123 Main St"
+              className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition"
+            />
+          </div>
+          <div className="flex justify-center mt-4">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full sm:w-auto bg-green-600 text-white px-5 py-2 rounded-lg font-semibold shadow-md hover:bg-green-700 transition flex items-center justify-center gap-2 disabled:bg-green-400 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <FaSpinner className="animate-spin" /> Adding...
+                </>
+              ) : (
+                "Add Customer"
+              )}
+            </button>
+          </div>
+        </form>
 
-      {/* Search and Customer List */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold">Existing Customers</h3>
-        <input type="text" placeholder="Search by name or contact..." value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-          className="border border-gray-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-500" />
-        
-        {/* Responsive Table */}
+        {/* CUSTOMER LIST */}
+        <h2 className="text-lg font-semibold mb-2 text-gray-700">
+          Existing Customers ({filteredCustomers.length})
+        </h2>
+        <input
+          type="text"
+          placeholder="Search by Sr.No or Name..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 w-full mb-4 focus:ring-1 focus:ring-purple-500 transition"
+        />
+
         <div className="overflow-x-auto border border-gray-200 rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100">
               <tr>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sr No</th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
+                  Sr.No
+                </th>
+                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
+                  Name
+                </th>
+                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
+                  Contact
+                </th>
+                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
+                  Address
+                </th>
+                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentCustomers.length > 0 ? (
-                currentCustomers.map((customer, i) => (
-                  <tr key={customer._id || i} className="hover:bg-gray-50">
-                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-500">{(currentPage - 1) * itemsPerPage + i + 1}</td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-900">
-                      {editingCustomerId === customer._id ? (
-                        <input type="text" name="name" value={editForm.name} onChange={handleEditChange}
-                          className="border border-gray-300 rounded-lg p-1 w-full" />
-                      ) : customer.name}
+              {filteredCustomers.length > 0 ? (
+                filteredCustomers.map((customer) => (
+                  <tr key={customer._id} className="hover:bg-gray-50 transition">
+                    <td className="py-4 px-4 font-bold text-gray-800">
+                      {customer.displaySrNo}
                     </td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="py-4 px-4">
                       {editingCustomerId === customer._id ? (
-                        <input type="text" name="contact" value={editForm.contact} onChange={handleEditChange}
-                          className="border border-gray-300 rounded-lg p-1 w-full" />
-                      ) : customer.contact}
+                        <input
+                          type="text"
+                          name="name"
+                          value={editForm.name}
+                          onChange={handleEditChange}
+                          className="border border-gray-300 rounded-lg p-1 w-full"
+                        />
+                      ) : (
+                        customer.name
+                      )}
                     </td>
-                    <td className="py-4 px-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        {editingCustomerId === customer._id ? (
-                          <>
-                            <button onClick={() => saveEdit(customer._id)} className="w-full sm:w-auto justify-center text-xs bg-green-500 text-white px-3 py-2 rounded-md flex items-center gap-1 hover:bg-green-600">
-                              <FaSave /> Save
-                            </button>
-                            <button onClick={() => setEditingCustomerId(null)} className="w-full sm:w-auto justify-center text-xs bg-gray-500 text-white px-3 py-2 rounded-md flex items-center gap-1 hover:bg-gray-600">
-                              <FaTimes /> Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => startEdit(customer)} className="w-full sm:w-auto justify-center text-xs bg-yellow-500 text-white px-3 py-2 rounded-md flex items-center gap-1 hover:bg-yellow-600">
-                              <FaEdit /> Edit
-                            </button>
-                            <button onClick={() => handleDeleteCustomer(customer)} className="w-full sm:w-auto justify-center text-xs bg-red-500 text-white px-3 py-2 rounded-md flex items-center gap-1 hover:bg-red-600">
-                              <FaTrashAlt /> Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
+                    <td className="py-4 px-4">
+                      {editingCustomerId === customer._id ? (
+                        <input
+                          type="text"
+                          name="contact"
+                          value={editForm.contact}
+                          onChange={handleEditChange}
+                          className="border border-gray-300 rounded-lg p-1 w-full"
+                        />
+                      ) : (
+                        customer.contact
+                      )}
+                    </td>
+                    <td className="py-4 px-4">
+                      {editingCustomerId === customer._id ? (
+                        <input
+                          type="text"
+                          name="address"
+                          value={editForm.address}
+                          onChange={handleEditChange}
+                          className="border border-gray-300 rounded-lg p-1 w-full"
+                        />
+                      ) : (
+                        customer.address
+                      )}
+                    </td>
+                    <td className="py-4 px-4">
+                      {editingCustomerId === customer._id ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => saveEdit(customer._id)}
+                            className="bg-green-500 text-white px-3 py-1 rounded-md flex items-center gap-1 hover:bg-green-600 transition"
+                          >
+                            <FaSave /> Save
+                          </button>
+                          <button
+                            onClick={() => setEditingCustomerId(null)}
+                            className="bg-gray-500 text-white px-3 py-1 rounded-md flex items-center gap-1 hover:bg-gray-600 transition"
+                          >
+                            <FaTimes /> Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEdit(customer)}
+                            className="text-blue-600 hover:text-blue-800 transition"
+                          >
+                            <FaEdit />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCustomer(customer)}
+                            className="text-red-600 hover:text-red-800 transition"
+                          >
+                            <FaTrashAlt />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="py-4 text-center text-gray-500">No customers found.</td>
+                  <td
+                    colSpan="5"
+                    className="text-center py-10 text-gray-500"
+                  >
+                    No customers found.
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-2">
-            <span className="text-sm text-gray-700">Page {currentPage} of {totalPages}</span>
-            <div className="inline-flex mt-2 sm:mt-0">
-                <button
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="px-4 py-2 text-sm font-medium text-gray-800 bg-gray-200 rounded-l hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Previous
-                </button>
-                <button
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="px-4 py-2 text-sm font-medium text-gray-800 bg-gray-200 rounded-r border-0 border-l border-gray-300 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Next
-                </button>
-            </div>
-            </div>
-        )}
       </div>
     </div>
   );
