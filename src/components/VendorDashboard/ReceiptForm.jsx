@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import dayjs from "dayjs";
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 dayjs.extend(customParseFormat);
@@ -10,32 +10,34 @@ import axios from "axios";
 const API_BASE_URI = "https://game-book.onrender.com";
 
 const ReceiptForm = ({ businessName }) => {
+  // Initial state setup
   const [formData, setFormData] = useState(() => {
     const savedData = localStorage.getItem("receiptData");
     return savedData
       ? JSON.parse(savedData)
       : {
-        _id: null,
-        businessName: businessName || "आपले दुकान",
-        serialNo: "",
-        customerName: "",
-        customerAddress: "",
-        customerContactNo: "",
-        day: dayjs().format("dddd"),
-        date: dayjs().format("DD-MM-YYYY"),
-        morningIncome: "",
-        eveningIncome: "",
-        payment: "",
-        pendingAmount: "",
-        advanceAmount: "",
-        cuttingAmount: "",
-        morningO: "",
-        morningJod: "",
-        morningKo: "",
-        eveningO: "",
-        eveningJod: "",
-        eveningKo: "",
-      };
+          _id: null,
+          businessName: businessName || "आपले दुकान",
+          serialNo: "",
+          customerId: "",
+          customerName: "",
+          customerAddress: "",
+          customerContactNo: "",
+          day: dayjs().format("dddd"),
+          date: dayjs().format("DD-MM-YYYY"),
+          morningIncome: "",
+          eveningIncome: "",
+          payment: "", // This will be calculated, initialized to empty
+          pendingAmount: "", // Manual input
+          advanceAmount: "", // Manual input
+          cuttingAmount: "", // Manual input
+          morningO: "",
+          morningJod: "",
+          morningKo: "",
+          eveningO: "",
+          eveningJod: "",
+          eveningKo: "",
+        };
   });
 
   const [customerList, setCustomerList] = useState([]);
@@ -44,46 +46,48 @@ const ReceiptForm = ({ businessName }) => {
   const printRef = useRef();
   const token = localStorage.getItem("token");
 
-  // Fetch customers with detailed error logging
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      if (!token) {
-        toast.error("You are not logged in.");
-        return;
-      }
-      try {
-        const response = await axios.get(`${API_BASE_URI}/api/customers`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCustomerList(response.data.customers || []);
-        if (!response.data.customers || response.data.customers.length === 0) {
-          toast.info("No customers found. Please add a customer first.");
-        }
-      } catch (error) {
-        toast.error("Failed to fetch customer data.");
-        console.error("Detailed error fetching customers:", error);
-      }
-    };
-    fetchCustomers();
+  // Fetch customers
+  const fetchCustomers = useCallback(async () => {
+    if (!token) {
+      toast.error("You are not logged in.");
+      return;
+    }
+    try {
+      const response = await axios.get(`${API_BASE_URI}/api/customers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Ensure srNo is treated as string for consistent matching
+      const customers = (response.data.customers || []).map(c => ({
+        ...c,
+        srNo: c.srNo?.toString(),
+      }));
+      setCustomerList(customers);
+    } catch (error) {
+      toast.error("Failed to fetch customer data.");
+      console.error("Detailed error fetching customers:", error);
+    }
   }, [token]);
 
   // Fetch receipts from the database
-  useEffect(() => {
-    const fetchReceipts = async () => {
-      if (!token) return;
-      try {
-        const response = await axios.get(`${API_BASE_URI}/api/receipts`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setReceipts(response.data.receipts || []);
-      } catch (error) {
-        toast.error("Failed to load saved receipts.");
-        console.error("Failed to fetch receipts:", error);
-      }
-    };
-    fetchReceipts();
+  const fetchReceipts = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await axios.get(`${API_BASE_URI}/api/receipts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReceipts(response.data.receipts || []);
+    } catch (error) {
+      toast.error("Failed to load saved receipts.");
+      console.error("Failed to fetch receipts:", error);
+    }
   }, [token]);
 
+  useEffect(() => {
+    fetchCustomers();
+    fetchReceipts();
+  }, [fetchCustomers, fetchReceipts]);
+
+  // Save formData to localStorage on change
   useEffect(() => {
     localStorage.setItem("receiptData", JSON.stringify(formData));
   }, [formData]);
@@ -93,49 +97,60 @@ const ReceiptForm = ({ businessName }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  /**
+   * IMPORTANT: Improved logic for serial number change.
+   * Fetches customer details based on srNo and populates the form.
+   */
   const handleSerialNoChange = (e) => {
-    const { value } = e.target;
-    const selectedCustomer = customerList.find((c) => c.srNo?.toString() === value);
+    const value = e.target.value.trim();
+    
+    // Find customer by comparing the input value (string) with the customer's srNo (string)
+    const selectedCustomer = customerList.find((c) => c.srNo === value);
+    
+    // Update formData with new serialNo and customer details
     setFormData((prev) => ({
       ...prev,
       serialNo: value,
+      // Reset or set customer details based on whether a customer was found
       customerId: selectedCustomer?._id || "",
       customerName: selectedCustomer?.name || "",
       customerAddress: selectedCustomer?.address || "",
       customerContactNo: selectedCustomer?.contact || "",
-      pendingAmount: selectedCustomer?.pendingAmount || "",
+      // NOTE: pendingAmount is *not* fetched from customer data as it's ledger data.
+      // It remains as whatever the user last entered or its initial state.
     }));
   };
 
-  // Live calculations
-  const morningIncome = Number(formData.morningIncome) || 0;
-  const eveningIncome = Number(formData.eveningIncome) || 0;
+  // --- CALCULATIONS ---
+
+  const toNum = (value) => Number(value) || 0;
+
+  const morningIncome = toNum(formData.morningIncome);
+  const eveningIncome = toNum(formData.eveningIncome);
   const totalIncome = morningIncome + eveningIncome;
   const deduction = totalIncome * 0.1;
   const afterDeduction = totalIncome - deduction;
-  const payment = Number(formData.payment) || 0;
-  const pendingAmount = Number(formData.pendingAmount) || 0;
-  const advanceAmount = Number(formData.advanceAmount) || 0;
-  const cuttingAmount = Number(formData.cuttingAmount) || 0;
-  const remainingBalance = afterDeduction - payment;
-  const finalTotal = remainingBalance + pendingAmount;
-  const totalWithAdvance = (deduction + payment + cuttingAmount) + advanceAmount;
+  
+  const pendingAmount = toNum(formData.pendingAmount);
+  const advanceAmount = toNum(formData.advanceAmount);
+  const cuttingAmount = toNum(formData.cuttingAmount);
 
   // Calculations for "ओ., जोड, को., पान" columns
   const morningCalculations = {
-    o: (Number(formData.morningO) || 0) * 8,
-    jod: (Number(formData.morningJod) || 0) * 80,
-    ko: (Number(formData.morningKo) || 0) * 8,
-    pan: 100,
+    o: toNum(formData.morningO) * 8,
+    jod: toNum(formData.morningJod) * 80,
+    ko: toNum(formData.morningKo) * 8,
+    pan: 100, // Static value
   };
 
   const eveningCalculations = {
-    o: (Number(formData.eveningO) || 0) * 9,
-    jod: (Number(formData.eveningJod) || 0) * 90,
-    ko: (Number(formData.eveningKo) || 0) * 9,
-    pan: 120,
+    o: toNum(formData.eveningO) * 9,
+    jod: toNum(formData.eveningJod) * 90,
+    ko: toNum(formData.eveningKo) * 9,
+    pan: 120, // Static value
   };
-
+  
+  // Total calculated payment based on the O., Jod, Ko columns
   const totalCalculatedPayment =
     morningCalculations.o +
     morningCalculations.jod +
@@ -144,16 +159,25 @@ const ReceiptForm = ({ businessName }) => {
     eveningCalculations.jod +
     eveningCalculations.ko;
 
+  const payment = totalCalculatedPayment; // Payment is derived from calculations
+
+  const remainingBalance = afterDeduction - payment;
+  const finalTotal = remainingBalance + pendingAmount;
+  const totalWithAdvance = (deduction + payment + cuttingAmount) + advanceAmount;
+
   const jama = afterDeduction;
   const jamaTotal = afterDeduction + payment + advanceAmount;
 
-  // Automatically update payment field based on totalCalculatedPayment
+  // Sync the calculated payment back to the state (read-only in form)
   useEffect(() => {
     setFormData((prev) => ({
       ...prev,
-      payment: totalCalculatedPayment.toFixed(2),
+      payment: payment.toFixed(2), // Keep the state synced with the calculation
     }));
-  }, [totalCalculatedPayment]);
+  }, [payment]);
+
+
+  // --- CRUD OPERATIONS ---
 
   const handleSave = async () => {
     if (!formData.customerName || !formData.customerId) {
@@ -179,38 +203,43 @@ const ReceiptForm = ({ businessName }) => {
       remainingBalance: remainingBalance,
       finalTotal: finalTotal,
       totalWithAdvance: totalWithAdvance,
-      morningCalculations,
-      eveningCalculations,
+      // Sending raw values to match the schema structure from the original component
+      morningO: toNum(formData.morningO),
+      morningJod: toNum(formData.morningJod),
+      morningKo: toNum(formData.morningKo),
+      eveningO: toNum(formData.eveningO),
+      eveningJod: toNum(formData.eveningJod),
+      eveningKo: toNum(formData.eveningKo),
     };
 
     try {
       let response;
-      let savedResponse;
-
       if (formData._id) {
+        // Update existing receipt
         response = await axios.put(`${API_BASE_URI}/api/receipts/${formData._id}`, receiptToSend, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         const updatedReceipt = response.data.receipt || response.data.data;
-
         setReceipts(receipts.map((r) => (r._id === updatedReceipt._id ? updatedReceipt : r)));
         toast.success("Receipt updated successfully!");
       } else {
+        // Create new receipt
         response = await axios.post(`${API_BASE_URI}/api/receipts`, receiptToSend, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         const newReceipt = response.data.receipt || response.data.data;
-
         setReceipts([newReceipt, ...receipts]);
         toast.success("Receipt saved successfully!");
       }
 
-      setFormData({
+      // Clear form after successful save/update, keeping businessName
+      setFormData((prev) => ({
         _id: null,
-        businessName: businessName || "आपले दुकान",
+        businessName: prev.businessName || "आपले दुकान",
         serialNo: "",
+        customerId: "",
         customerName: "",
         customerAddress: "",
         customerContactNo: "",
@@ -228,10 +257,10 @@ const ReceiptForm = ({ businessName }) => {
         eveningO: "",
         eveningJod: "",
         eveningKo: "",
-      });
+      }));
     } catch (error) {
-      toast.error(error.message || "Error saving receipt");
-      console.error("Detailed error saving receipt:", error);
+      toast.error(error.response?.data?.message || "Error saving receipt");
+      console.error("Detailed error saving receipt:", error.response?.data || error);
     }
   };
 
@@ -244,7 +273,7 @@ const ReceiptForm = ({ businessName }) => {
         setReceipts(receipts.filter((r) => r._id !== id));
         toast.success("Receipt deleted successfully!");
       } catch (error) {
-        toast.error(error.message);
+        toast.error(error.response?.data?.message || "Failed to delete receipt.");
         console.error("Failed to delete receipt:", error);
       }
     }
@@ -252,11 +281,41 @@ const ReceiptForm = ({ businessName }) => {
 
   const handleEdit = (id) => {
     const receiptToEdit = receipts.find((r) => r._id === id);
-    const formattedReceipt = {
-      ...receiptToEdit,
+    if (!receiptToEdit) return;
+
+    // Find the original customer data to get serialNo, address, contact
+    const originalCustomer = customerList.find(c => c._id === receiptToEdit.customerId);
+
+    // Reconstruct the full form state
+    setFormData({
+      _id: receiptToEdit._id,
+      businessName: receiptToEdit.businessName || businessName || "आपले दुकान",
+      
+      // Customer Details from CustomerList
+      serialNo: originalCustomer?.srNo || "",
+      customerId: receiptToEdit.customerId,
+      customerName: receiptToEdit.customerName,
+      customerAddress: originalCustomer?.address || "",
+      customerContactNo: originalCustomer?.contact || "",
+
+      // Receipt Details
+      day: receiptToEdit.day,
       date: dayjs(receiptToEdit.date).format("DD-MM-YYYY"),
-    };
-    setFormData(formattedReceipt);
+      morningIncome: receiptToEdit.morningIncome?.toString() || "",
+      eveningIncome: receiptToEdit.eveningIncome?.toString() || "",
+      payment: receiptToEdit.payment?.toString() || "", // This should still be the saved value
+      pendingAmount: receiptToEdit.pendingAmount?.toString() || "",
+      advanceAmount: receiptToEdit.advanceAmount?.toString() || "",
+      cuttingAmount: receiptToEdit.cuttingAmount?.toString() || "",
+
+      // Input fields for O., Jod, Ko - using saved values if they exist, otherwise empty string
+      morningO: receiptToEdit.morningO?.toString() || "",
+      morningJod: receiptToEdit.morningJod?.toString() || "",
+      morningKo: receiptToEdit.morningKo?.toString() || "",
+      eveningO: receiptToEdit.eveningO?.toString() || "",
+      eveningJod: receiptToEdit.eveningJod?.toString() || "",
+      eveningKo: receiptToEdit.eveningKo?.toString() || "",
+    });
   };
 
   const handlePrint = () => window.print();
@@ -264,49 +323,118 @@ const ReceiptForm = ({ businessName }) => {
   const handleTablePrint = (id) => {
     const receiptToPrint = receipts.find((r) => r._id === id);
     if (receiptToPrint) {
-      const formattedReceipt = { ...receiptToPrint, date: dayjs(receiptToPrint.date).format("DD-MM-YYYY") };
+      // Find the original customer data to get serialNo, address, contact
+      const originalCustomer = customerList.find(c => c._id === receiptToPrint.customerId);
+
+      // Temporarily update formData to reflect the receipt to be printed
+      const formattedReceipt = {
+        ...receiptToPrint,
+        date: dayjs(receiptToPrint.date).format("DD-MM-YYYY"),
+        serialNo: originalCustomer?.srNo || "",
+        customerAddress: originalCustomer?.address || "",
+        customerContactNo: originalCustomer?.contact || "",
+        // Ensure all numeric fields are strings for input value consistency
+        morningIncome: receiptToPrint.morningIncome?.toString() || "",
+        eveningIncome: receiptToPrint.eveningIncome?.toString() || "",
+        payment: receiptToPrint.payment?.toString() || "",
+        pendingAmount: receiptToPrint.pendingAmount?.toString() || "",
+        advanceAmount: receiptToPrint.advanceAmount?.toString() || "",
+        cuttingAmount: receiptToPrint.cuttingAmount?.toString() || "",
+        morningO: receiptToPrint.morningO?.toString() || "",
+        morningJod: receiptToPrint.morningJod?.toString() || "",
+        morningKo: receiptToPrint.morningKo?.toString() || "",
+        eveningO: receiptToPrint.eveningO?.toString() || "",
+        eveningJod: receiptToPrint.eveningJod?.toString() || "",
+        eveningKo: receiptToPrint.eveningKo?.toString() || "",
+      };
       setFormData(formattedReceipt);
       setTimeout(() => handlePrint(), 100);
     }
   };
 
   const filteredReceipts = receipts.filter(
-    (r) =>
-      r.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dayjs(r.date).format("DD-MM-YYYY").includes(searchTerm) ||
-      r.finalTotal.toString().includes(searchTerm)
+    (r) => {
+      const searchTermLower = searchTerm.toLowerCase();
+      // Find the customer associated with the receipt to get their serial number
+      const associatedCustomer = customerList.find(c => c._id === r.customerId);
+      const serialNo = associatedCustomer?.srNo?.toString().toLowerCase();
+
+      return (
+        r.customerName.toLowerCase().includes(searchTermLower) ||
+        (serialNo && serialNo.includes(searchTermLower)) ||
+        dayjs(r.date).format("DD-MM-YYYY").includes(searchTerm) ||
+        r.finalTotal.toString().includes(searchTerm)
+      );
+    }
   );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8 font-sans text-gray-800">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-8 font-sans text-gray-800">
       <ToastContainer />
-      <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; } .no-print { display: none !important; } .print-only { display: block !important; } .print-inline-block { display: inline-block !important; } }`}</style>
+      <style>{`@media print { 
+        body * { visibility: hidden; } 
+        .printable-area, .printable-area * { visibility: visible; } 
+        .printable-area { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; margin: 0; padding: 0 !important; } 
+        .no-print { display: none !important; } 
+        .print-only { display: block !important; } 
+        .print-inline-block { display: inline-block !important; } 
+        .printable-area input[type="number"], .printable-area input[type="text"] {
+          border: none !important;
+          background: transparent !important;
+          -webkit-appearance: none;
+          -moz-appearance: textfield;
+          text-align: inherit;
+          padding: 0;
+          margin: 0;
+          width: 100%;
+        }
+        .printable-area table { table-layout: fixed; width: 100%; }
+        .printable-area th, .printable-area td { padding: 4px 8px !important; }
+      }`}</style>
 
       {/* Main Form */}
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8">
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
         <div className="text-center mb-4">
-          <input type="text" name="businessName" value={formData.businessName} onChange={handleChange} className="text-center font-bold text-xl rounded-md p-1 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          {/* Business Name: Always visible and editable on screen, prints as text */}
+          <input 
+            type="text" 
+            name="businessName" 
+            value={formData.businessName} 
+            onChange={handleChange} 
+            className="text-center font-bold text-xl rounded-md p-1 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+          />
         </div>
 
         <div ref={printRef} className="printable-area p-4 border border-gray-400 rounded-lg">
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 text-sm">
-            {/* Customer Info */}
+          <div className="flex flex-col sm:flex-row justify-between items-start mb-4 text-sm">
+            
+            {/* Customer Info (Left Side) */}
             <div className="flex flex-col items-start w-full sm:w-1/2 mb-4 sm:mb-0">
-              <div className="flex items-center">
-                <input type="text" name="serialNo" value={formData.serialNo} onChange={handleSerialNoChange} placeholder="Serial No." className="no-print p-1 w-24 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <span className="ml-2 font-semibold print-only">{formData.customerName}</span>
-              </div>
-              {formData.customerName && (
-                <div className="mt-2 text-xs">
-                  <div>Address: {formData.customerAddress}</div>
-                  <div>Contact No: {formData.customerContactNo}</div>
+                <div className="flex items-center mb-2">
+                    {/* Serial No. Input - only visible on screen */}
+                    <span className="font-semibold mr-2 no-print">Serial No:</span>
+                    <input 
+                        type="text" 
+                        name="serialNo" 
+                        value={formData.serialNo} 
+                        onChange={handleSerialNoChange} 
+                        placeholder="Serial No." 
+                        className="no-print p-1 w-24 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    />
                 </div>
-              )}
+                
+                {/* Customer Details - Clearly displayed for print and screen */}
+                <div className="mt-1 text-base space-y-1">
+                    <div className="font-bold">Customer: {formData.customerName || 'N/A'}</div>
+                    <div className="text-xs">Address: {formData.customerAddress || 'N/A'}</div>
+                    <div className="text-xs">Contact No: {formData.customerContactNo || 'N/A'}</div>
+                </div>
             </div>
-            {/* Date and Day */}
+
+            {/* Date and Day (Right Side) */}
             <div className="text-right w-full sm:w-1/2">
-              <div>वार:- {formData.day}</div>
-              <div>दि:- {formData.date}</div>
+              <div>वार:- <span className="font-semibold">{formData.day}</span></div>
+              <div>दि:- <span className="font-semibold">{formData.date}</span></div>
             </div>
           </div>
 
@@ -323,6 +451,7 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
             </thead>
             <tbody>
+              {/* Income and Calculation rows */}
               <tr>
                 <td className="border p-2">आ.</td>
                 <td className="border p-2 text-right">
@@ -331,22 +460,22 @@ const ReceiptForm = ({ businessName }) => {
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end">
                     <input type="number" name="morningO" value={formData.morningO} onChange={handleChange} className="w-16 text-right bg-transparent border-b border-gray-300 focus:outline-none" />
-                    <span className="ml-1 text-xs whitespace-nowrap">*8={morningCalculations.o}</span>
+                    <span className="ml-1 text-xs whitespace-nowrap">*8=<span className="font-semibold print-only print-inline-block">{morningCalculations.o.toFixed(0)}</span><span className="no-print">{morningCalculations.o.toFixed(0)}</span></span>
                   </div>
                 </td>
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end">
                     <input type="number" name="morningJod" value={formData.morningJod} onChange={handleChange} className="w-16 text-right bg-transparent border-b border-gray-300 focus:outline-none" />
-                    <span className="ml-1 text-xs whitespace-nowrap">*80={morningCalculations.jod}</span>
+                    <span className="ml-1 text-xs whitespace-nowrap">*80=<span className="font-semibold print-only print-inline-block">{morningCalculations.jod.toFixed(0)}</span><span className="no-print">{morningCalculations.jod.toFixed(0)}</span></span>
                   </div>
                 </td>
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end">
                     <input type="number" name="morningKo" value={formData.morningKo} onChange={handleChange} className="w-16 text-right bg-transparent border-b border-gray-300 focus:outline-none" />
-                    <span className="ml-1 text-xs whitespace-nowrap">*8={morningCalculations.ko}</span>
+                    <span className="ml-1 text-xs whitespace-nowrap">*8=<span className="font-semibold print-only print-inline-block">{morningCalculations.ko.toFixed(0)}</span><span className="no-print">{morningCalculations.ko.toFixed(0)}</span></span>
                   </div>
                 </td>
-                <td className="border p-2">{morningCalculations.pan}</td>
+                <td className="border p-2 text-center">{morningCalculations.pan.toFixed(0)}</td>
                 <td className="border p-2"></td>
               </tr>
               <tr>
@@ -357,27 +486,27 @@ const ReceiptForm = ({ businessName }) => {
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end">
                     <input type="number" name="eveningO" value={formData.eveningO} onChange={handleChange} className="w-16 text-right bg-transparent border-b border-gray-300 focus:outline-none" />
-                    <span className="ml-1 text-xs whitespace-nowrap">*9={eveningCalculations.o}</span>
+                    <span className="ml-1 text-xs whitespace-nowrap">*9=<span className="font-semibold print-only print-inline-block">{eveningCalculations.o.toFixed(0)}</span><span className="no-print">{eveningCalculations.o.toFixed(0)}</span></span>
                   </div>
                 </td>
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end">
                     <input type="number" name="eveningJod" value={formData.eveningJod} onChange={handleChange} className="w-16 text-right bg-transparent border-b border-gray-300 focus:outline-none" />
-                    <span className="ml-1 text-xs whitespace-nowrap">*90={eveningCalculations.jod}</span>
+                    <span className="ml-1 text-xs whitespace-nowrap">*90=<span className="font-semibold print-only print-inline-block">{eveningCalculations.jod.toFixed(0)}</span><span className="no-print">{eveningCalculations.jod.toFixed(0)}</span></span>
                   </div>
                 </td>
                 <td className="border p-2 text-right">
                   <div className="flex items-center justify-end">
                     <input type="number" name="eveningKo" value={formData.eveningKo} onChange={handleChange} className="w-16 text-right bg-transparent border-b border-gray-300 focus:outline-none" />
-                    <span className="ml-1 text-xs whitespace-nowrap">*9={eveningCalculations.ko}</span>
+                    <span className="ml-1 text-xs whitespace-nowrap">*9=<span className="font-semibold print-only print-inline-block">{eveningCalculations.ko.toFixed(0)}</span><span className="no-print">{eveningCalculations.ko.toFixed(0)}</span></span>
                   </div>
                 </td>
-                <td className="border p-2">{eveningCalculations.pan}</td>
+                <td className="border p-2 text-center">{eveningCalculations.pan.toFixed(0)}</td>
                 <td className="border p-2"></td>
               </tr>
               <tr>
                 <td className="border p-2">टो.</td>
-                <td className="border p-2 text-right">{totalIncome.toFixed(2)}</td>
+                <td className="border p-2 text-right font-bold">{totalIncome.toFixed(2)}</td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
@@ -395,7 +524,7 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
               <tr>
                 <td className="border p-2">टो.</td>
-                <td className="border p-2 text-right">{afterDeduction.toFixed(2)}</td>
+                <td className="border p-2 text-right font-bold">{afterDeduction.toFixed(2)}</td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
@@ -405,7 +534,7 @@ const ReceiptForm = ({ businessName }) => {
               <tr>
                 <td className="border p-2">पें.</td>
                 <td className="border p-2 text-right">
-                  <input type="number" name="payment" value={formData.payment} onChange={handleChange} className="w-full text-right bg-transparent border-b border-gray-300 focus:outline-none" readOnly />
+                  <input type="number" name="payment" value={payment.toFixed(2)} readOnly className="w-full text-right bg-transparent border-b border-gray-300 focus:outline-none cursor-default" />
                 </td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
@@ -415,7 +544,7 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
               <tr>
                 <td className="border p-2">टो.</td>
-                <td className="border p-2 text-right">{remainingBalance.toFixed(2)}</td>
+                <td className="border p-2 text-right font-bold">{remainingBalance.toFixed(2)}</td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
@@ -424,7 +553,9 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
               <tr>
                 <td className="border p-2">मा.</td>
-                <td className="border p-2 text-right">{pendingAmount.toFixed(2)}</td>
+                <td className="border p-2 text-right">
+                  <input type="number" name="pendingAmount" value={formData.pendingAmount} onChange={handleChange} className="w-full text-right bg-transparent border-b border-gray-300 focus:outline-none" />
+                </td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
@@ -433,7 +564,7 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
               <tr>
                 <td className="border p-2">टो.</td>
-                <td className="border p-2 text-right">{finalTotal.toFixed(2)}</td>
+                <td className="border p-2 text-right font-bold">{finalTotal.toFixed(2)}</td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
@@ -442,9 +573,10 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
             </tbody>
           </table>
+          
+          {/* Bottom Summary Fields */}
           <div className="flex justify-between items-end mt-4">
-            {/* New bordered "जमा" fields on the left */}
-            <div className="w-1/2 ml-2 p-2 border border-gray-400 rounded-md">
+            <div className="w-1/2 mr-2 p-2 border border-gray-400 rounded-md">
               <div className="flex items-center justify-between text-sm">
                 <span className="mr-2">जमा:-</span>
                 <span className="font-bold">{jama.toFixed(2)}</span>
@@ -454,7 +586,6 @@ const ReceiptForm = ({ businessName }) => {
                 <span className="font-bold">{jamaTotal.toFixed(2)}</span>
               </div>
             </div>
-            {/* Existing fields on the right with the new "cutting" field */}
             <div className="w-1/2 ml-2 p-2 border border-gray-400 rounded-md">
               <div className="flex items-center justify-between">
                 <span className="mr-2">आड:-</span>
@@ -472,6 +603,7 @@ const ReceiptForm = ({ businessName }) => {
           </div>
         </div>
 
+        {/* Action Buttons (No Print) */}
         <div className="no-print flex justify-center mt-6 space-x-4">
           <button onClick={handleSave} className="px-6 py-2 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-colors">
             Save Receipt
@@ -481,10 +613,11 @@ const ReceiptForm = ({ businessName }) => {
           </button>
           <button
             onClick={() =>
-              setFormData({
+              setFormData((prev) => ({
                 _id: null,
-                businessName: businessName || "आपले दुकान",
+                businessName: prev.businessName || "आपले दुकान",
                 serialNo: "",
+                customerId: "",
                 customerName: "",
                 customerAddress: "",
                 customerContactNo: "",
@@ -502,7 +635,7 @@ const ReceiptForm = ({ businessName }) => {
                 eveningO: "",
                 eveningJod: "",
                 eveningKo: "",
-              })
+              }))
             }
             className="px-6 py-2 bg-gray-500 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors"
           >
@@ -511,7 +644,7 @@ const ReceiptForm = ({ businessName }) => {
         </div>
       </div>
 
-      {/* Saved Receipts Table */}
+      {/* Saved Receipts Table (No Print) */}
       <div className="no-print mt-8 max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8">
         <h2 className="text-2xl font-bold mb-4">Saved Receipts</h2>
         <div className="mb-4">
@@ -532,7 +665,7 @@ const ReceiptForm = ({ businessName }) => {
                 <tr key={receipt._id}>
                   <td className="px-6 py-4 whitespace-nowrap">{receipt.customerName}</td>
                   <td className="px-6 py-4 whitespace-nowrap">{dayjs(receipt.date).format("DD-MM-YYYY")}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">{receipt.finalTotal}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{receipt.finalTotal.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-center space-x-2">
                     <button onClick={() => handleEdit(receipt._id)} className="text-blue-600 hover:text-blue-900">
                       <FaEdit className="w-5 h-5 inline-block" />
