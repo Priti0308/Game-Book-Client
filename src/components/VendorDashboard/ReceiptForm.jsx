@@ -23,14 +23,15 @@ const ReceiptForm = ({ businessName }) => {
           customerName: "",
           customerAddress: "",
           customerContactNo: "",
+          customerCompany: "", // Added for company name
           day: dayjs().format("dddd"),
           date: dayjs().format("DD-MM-YYYY"),
           morningIncome: "",
           eveningIncome: "",
-          payment: "", // This will be calculated, initialized to empty
-          pendingAmount: "", // Manual input
-          advanceAmount: "", // Manual input
-          cuttingAmount: "", // Manual input
+          payment: "",
+          pendingAmount: "",
+          advanceAmount: "",
+          cuttingAmount: "",
           morningO: "",
           morningJod: "",
           morningKo: "",
@@ -46,6 +47,15 @@ const ReceiptForm = ({ businessName }) => {
   const printRef = useRef();
   const token = localStorage.getItem("token");
 
+  // New state for the game status and numbers
+  const [gameStatus, setGameStatus] = useState("Open");
+  const [openNumber1, setOpenNumber1] = useState("");
+  const [openNumber2, setOpenNumber2] = useState("");
+  const [closeNumber1, setCloseNumber1] = useState("");
+  const [closeNumber2, setCloseNumber2] = useState("");
+  const [morningGunOption, setMorningGunOption] = useState("");
+  const [eveningGunOption, setEveningGunOption] = useState("");
+
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
     if (!token) {
@@ -56,11 +66,10 @@ const ReceiptForm = ({ businessName }) => {
       const response = await axios.get(`${API_BASE_URI}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Ensure srNo is treated as string for consistent matching
-      const customers = (response.data.customers || []).map(c => ({
-        ...c,
-        srNo: c.srNo?.toString(),
-      }));
+      // Final and correct sorting logic: ensures numerical sort by converting to number
+      const customers = (response.data.customers || [])
+        .map(c => ({ ...c, srNo: c.srNo?.toString(), company: c.company || '' }))
+        .sort((a, b) => parseInt(a.srNo, 10) - parseInt(b.srNo, 10));
       setCustomerList(customers);
     } catch (error) {
       toast.error("Failed to fetch customer data.");
@@ -98,33 +107,37 @@ const ReceiptForm = ({ businessName }) => {
   };
 
   /**
-   * IMPORTANT: Improved logic for serial number change.
-   * Fetches customer details based on srNo and populates the form.
+   * Handles selection from the serial number dropdown.
    */
   const handleSerialNoChange = (e) => {
-    const value = e.target.value.trim();
-    
-    // Find customer by comparing the input value (string) with the customer's srNo (string)
+    const value = e.target.value;
     const selectedCustomer = customerList.find((c) => c.srNo === value);
     
-    // Update formData with new serialNo and customer details
-    setFormData((prev) => ({
-      ...prev,
-      serialNo: value,
-      // Reset or set customer details based on whether a customer was found
-      customerId: selectedCustomer?._id || "",
-      customerName: selectedCustomer?.name || "",
-      customerAddress: selectedCustomer?.address || "",
-      customerContactNo: selectedCustomer?.contact || "",
-      // NOTE: pendingAmount is *not* fetched from customer data as it's ledger data.
-      // It remains as whatever the user last entered or its initial state.
-    }));
+    if (selectedCustomer) {
+      setFormData((prev) => ({
+        ...prev,
+        serialNo: selectedCustomer.srNo,
+        customerId: selectedCustomer._id,
+        customerName: selectedCustomer.name,
+        customerAddress: selectedCustomer.address || "",
+        customerContactNo: selectedCustomer.contact || "",
+        customerCompany: selectedCustomer.company || ""
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        serialNo: "",
+        customerId: "",
+        customerName: "",
+        customerAddress: "",
+        customerContactNo: "",
+        customerCompany: ""
+      }));
+    }
   };
 
   // --- CALCULATIONS ---
-
   const toNum = (value) => Number(value) || 0;
-
   const morningIncome = toNum(formData.morningIncome);
   const eveningIncome = toNum(formData.eveningIncome);
   const totalIncome = morningIncome + eveningIncome;
@@ -135,22 +148,20 @@ const ReceiptForm = ({ businessName }) => {
   const advanceAmount = toNum(formData.advanceAmount);
   const cuttingAmount = toNum(formData.cuttingAmount);
 
-  // Calculations for "ओ., जोड, को., पान" columns
   const morningCalculations = {
     o: toNum(formData.morningO) * 8,
     jod: toNum(formData.morningJod) * 80,
     ko: toNum(formData.morningKo) * 8,
-    pan: 100, // Static value
+    pan: 100,
   };
 
   const eveningCalculations = {
     o: toNum(formData.eveningO) * 9,
     jod: toNum(formData.eveningJod) * 90,
     ko: toNum(formData.eveningKo) * 9,
-    pan: 120, // Static value
+    pan: 120,
   };
   
-  // Total calculated payment based on the O., Jod, Ko columns
   const totalCalculatedPayment =
     morningCalculations.o +
     morningCalculations.jod +
@@ -159,32 +170,26 @@ const ReceiptForm = ({ businessName }) => {
     eveningCalculations.jod +
     eveningCalculations.ko;
 
-  const payment = totalCalculatedPayment; // Payment is derived from calculations
-
+  const payment = totalCalculatedPayment;
   const remainingBalance = afterDeduction - payment;
   const finalTotal = remainingBalance + pendingAmount;
   const totalWithAdvance = (deduction + payment + cuttingAmount) + advanceAmount;
-
   const jama = afterDeduction;
   const jamaTotal = afterDeduction + payment + advanceAmount;
 
-  // Sync the calculated payment back to the state (read-only in form)
   useEffect(() => {
     setFormData((prev) => ({
       ...prev,
-      payment: payment.toFixed(2), // Keep the state synced with the calculation
+      payment: payment.toFixed(2),
     }));
   }, [payment]);
 
-
   // --- CRUD OPERATIONS ---
-
   const handleSave = async () => {
     if (!formData.customerName || !formData.customerId) {
-      toast.error("Please select a customer by entering the serial number.");
+      toast.error("Please select a customer.");
       return;
     }
-
     const receiptToSend = {
       businessName: formData.businessName,
       customerName: formData.customerName,
@@ -203,7 +208,6 @@ const ReceiptForm = ({ businessName }) => {
       remainingBalance: remainingBalance,
       finalTotal: finalTotal,
       totalWithAdvance: totalWithAdvance,
-      // Sending raw values to match the schema structure from the original component
       morningO: toNum(formData.morningO),
       morningJod: toNum(formData.morningJod),
       morningKo: toNum(formData.morningKo),
@@ -211,30 +215,23 @@ const ReceiptForm = ({ businessName }) => {
       eveningJod: toNum(formData.eveningJod),
       eveningKo: toNum(formData.eveningKo),
     };
-
     try {
       let response;
       if (formData._id) {
-        // Update existing receipt
         response = await axios.put(`${API_BASE_URI}/api/receipts/${formData._id}`, receiptToSend, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         const updatedReceipt = response.data.receipt || response.data.data;
         setReceipts(receipts.map((r) => (r._id === updatedReceipt._id ? updatedReceipt : r)));
         toast.success("Receipt updated successfully!");
       } else {
-        // Create new receipt
         response = await axios.post(`${API_BASE_URI}/api/receipts`, receiptToSend, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         const newReceipt = response.data.receipt || response.data.data;
         setReceipts([newReceipt, ...receipts]);
         toast.success("Receipt saved successfully!");
       }
-
-      // Clear form after successful save/update, keeping businessName
       setFormData((prev) => ({
         _id: null,
         businessName: prev.businessName || "आपले दुकान",
@@ -243,6 +240,7 @@ const ReceiptForm = ({ businessName }) => {
         customerName: "",
         customerAddress: "",
         customerContactNo: "",
+        customerCompany: "",
         day: dayjs().format("dddd"),
         date: dayjs().format("DD-MM-YYYY"),
         morningIncome: "",
@@ -282,33 +280,24 @@ const ReceiptForm = ({ businessName }) => {
   const handleEdit = (id) => {
     const receiptToEdit = receipts.find((r) => r._id === id);
     if (!receiptToEdit) return;
-
-    // Find the original customer data to get serialNo, address, contact
     const originalCustomer = customerList.find(c => c._id === receiptToEdit.customerId);
-
-    // Reconstruct the full form state
     setFormData({
       _id: receiptToEdit._id,
       businessName: receiptToEdit.businessName || businessName || "आपले दुकान",
-      
-      // Customer Details from CustomerList
       serialNo: originalCustomer?.srNo || "",
       customerId: receiptToEdit.customerId,
       customerName: receiptToEdit.customerName,
       customerAddress: originalCustomer?.address || "",
       customerContactNo: originalCustomer?.contact || "",
-
-      // Receipt Details
+      customerCompany: originalCustomer?.company || "",
       day: receiptToEdit.day,
       date: dayjs(receiptToEdit.date).format("DD-MM-YYYY"),
       morningIncome: receiptToEdit.morningIncome?.toString() || "",
       eveningIncome: receiptToEdit.eveningIncome?.toString() || "",
-      payment: receiptToEdit.payment?.toString() || "", // This should still be the saved value
+      payment: receiptToEdit.payment?.toString() || "",
       pendingAmount: receiptToEdit.pendingAmount?.toString() || "",
       advanceAmount: receiptToEdit.advanceAmount?.toString() || "",
       cuttingAmount: receiptToEdit.cuttingAmount?.toString() || "",
-
-      // Input fields for O., Jod, Ko - using saved values if they exist, otherwise empty string
       morningO: receiptToEdit.morningO?.toString() || "",
       morningJod: receiptToEdit.morningJod?.toString() || "",
       morningKo: receiptToEdit.morningKo?.toString() || "",
@@ -323,17 +312,14 @@ const ReceiptForm = ({ businessName }) => {
   const handleTablePrint = (id) => {
     const receiptToPrint = receipts.find((r) => r._id === id);
     if (receiptToPrint) {
-      // Find the original customer data to get serialNo, address, contact
       const originalCustomer = customerList.find(c => c._id === receiptToPrint.customerId);
-
-      // Temporarily update formData to reflect the receipt to be printed
       const formattedReceipt = {
         ...receiptToPrint,
         date: dayjs(receiptToPrint.date).format("DD-MM-YYYY"),
         serialNo: originalCustomer?.srNo || "",
         customerAddress: originalCustomer?.address || "",
         customerContactNo: originalCustomer?.contact || "",
-        // Ensure all numeric fields are strings for input value consistency
+        customerCompany: originalCustomer?.company || "",
         morningIncome: receiptToPrint.morningIncome?.toString() || "",
         eveningIncome: receiptToPrint.eveningIncome?.toString() || "",
         payment: receiptToPrint.payment?.toString() || "",
@@ -348,22 +334,24 @@ const ReceiptForm = ({ businessName }) => {
         eveningKo: receiptToPrint.eveningKo?.toString() || "",
       };
       setFormData(formattedReceipt);
-      setTimeout(() => handlePrint(), 100);
+      setTimeout(() => window.print(), 100);
     }
   };
 
   const filteredReceipts = receipts.filter(
     (r) => {
       const searchTermLower = searchTerm.toLowerCase();
-      // Find the customer associated with the receipt to get their serial number
       const associatedCustomer = customerList.find(c => c._id === r.customerId);
       const serialNo = associatedCustomer?.srNo?.toString().toLowerCase();
-
+      const customerName = r.customerName.toLowerCase();
+      const date = dayjs(r.date).format("DD-MM-YYYY");
+      const finalTotal = r.finalTotal.toString();
+      
       return (
-        r.customerName.toLowerCase().includes(searchTermLower) ||
+        customerName.includes(searchTermLower) ||
         (serialNo && serialNo.includes(searchTermLower)) ||
-        dayjs(r.date).format("DD-MM-YYYY").includes(searchTerm) ||
-        r.finalTotal.toString().includes(searchTerm)
+        date.includes(searchTerm) ||
+        finalTotal.includes(searchTerm)
       );
     }
   );
@@ -390,12 +378,13 @@ const ReceiptForm = ({ businessName }) => {
         }
         .printable-area table { table-layout: fixed; width: 100%; }
         .printable-area th, .printable-area td { padding: 4px 8px !important; }
+        .print-hidden-row { display: none; }
+        .print-view-hidden { display: none; }
       }`}</style>
 
       {/* Main Form */}
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
         <div className="text-center mb-4">
-          {/* Business Name: Always visible and editable on screen, prints as text */}
           <input 
             type="text" 
             name="businessName" 
@@ -409,30 +398,87 @@ const ReceiptForm = ({ businessName }) => {
           <div className="flex flex-col sm:flex-row justify-between items-start mb-4 text-sm">
             
             {/* Customer Info (Left Side) */}
-            <div className="flex flex-col items-start w-full sm:w-1/2 mb-4 sm:mb-0">
+            <div className="flex flex-col items-start w-full sm:w-1/3 mb-4 sm:mb-0">
                 <div className="flex items-center mb-2">
-                    {/* Serial No. Input - only visible on screen */}
                     <span className="font-semibold mr-2 no-print">Serial No:</span>
-                    <input 
-                        type="text" 
+                    <select
                         name="serialNo" 
-                        value={formData.serialNo} 
-                        onChange={handleSerialNoChange} 
-                        placeholder="Serial No." 
-                        className="no-print p-1 w-24 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    />
+                        value={formData.serialNo}
+                        onChange={handleSerialNoChange}
+                        className="no-print p-1 w-24 rounded-md border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Sr.No</option>
+                      {customerList.map((customer) => (
+                          <option key={customer._id} value={customer.srNo}>
+                              {customer.srNo}
+                          </option>
+                      ))}
+                    </select>
                 </div>
                 
-                {/* Customer Details - Clearly displayed for print and screen */}
+                {/* Customer Details - Displayed based on the selected serial number */}
                 <div className="mt-1 text-base space-y-1">
-                    <div className="font-bold">Customer: {formData.customerName || 'N/A'}</div>
-                    <div className="text-xs">Address: {formData.customerAddress || 'N/A'}</div>
-                    <div className="text-xs">Contact No: {formData.customerContactNo || 'N/A'}</div>
+                    <div><b className="font-bold">Customer:</b> {formData.customerName || 'N/A'}</div>
+                    <div><b className="font-bold">Address:</b> {formData.customerAddress || 'N/A'}</div>
+                    <div><b className="font-bold">Contact No:</b> {formData.customerContactNo || 'N/A'}</div>
                 </div>
             </div>
 
+            {/* New Central Box with Dropdown and Input */}
+            <div className="flex-grow flex flex-col justify-center items-center pt-4 sm:pt-0">
+              <div className="border border-gray-400 p-2 rounded-md text-center w-36">
+                <select 
+                  value={gameStatus} 
+                  onChange={(e) => setGameStatus(e.target.value)}
+                  className="w-full p-0 text-sm font-bold rounded-md border-none focus:outline-none text-center"
+                >
+                  <option value="Open">Open</option>
+                  <option value="Close">Close</option>
+                </select>
+                {gameStatus === "Open" && (
+                  <div className="mt-1 flex justify-center space-x-2">
+                    <input
+                      type="text"
+                      value={openNumber1}
+                      onChange={(e) => setOpenNumber1(e.target.value)}
+                      placeholder="No. 1"
+                      className="w-1/2 p-1 text-center text-sm border-b border-gray-300 focus:outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={openNumber2}
+                      onChange={(e) => setOpenNumber2(e.target.value)}
+                      placeholder="No. 2"
+                      className="w-1/2 p-1 text-center text-sm border-b border-gray-300 focus:outline-none"
+                    />
+                  </div>
+                )}
+                {gameStatus === "Close" && (
+                  <div className="mt-1 flex justify-center space-x-2">
+                    <input
+                      type="text"
+                      value={closeNumber1}
+                      onChange={(e) => setCloseNumber1(e.target.value)}
+                      placeholder="No. 1"
+                      className="w-1/2 p-1 text-center text-sm border-b border-gray-300 focus:outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={closeNumber2}
+                      onChange={(e) => setCloseNumber2(e.target.value)}
+                      placeholder="No. 2"
+                      className="w-1/2 p-1 text-center text-sm border-b border-gray-300 focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+              {/* Company Name displayed below the box */}
+              <div className="mt-2 text-sm"><b>Company Name:</b> {formData.customerCompany || 'N/A'}</div>
+            </div>
+            {/* End of new central box */}
+
             {/* Date and Day (Right Side) */}
-            <div className="text-right w-full sm:w-1/2">
+            <div className="text-right w-full sm:w-1/3">
               <div>वार:- <span className="font-semibold">{formData.day}</span></div>
               <div>दि:- <span className="font-semibold">{formData.date}</span></div>
             </div>
@@ -451,7 +497,6 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
             </thead>
             <tbody>
-              {/* Income and Calculation rows */}
               <tr>
                 <td className="border p-2">आ.</td>
                 <td className="border p-2 text-right">
@@ -476,7 +521,22 @@ const ReceiptForm = ({ businessName }) => {
                   </div>
                 </td>
                 <td className="border p-2 text-center">{morningCalculations.pan.toFixed(0)}</td>
-                <td className="border p-2"></td>
+                <td className="border p-2">
+                  <div className="no-print">
+                      <select 
+                          value={morningGunOption} 
+                          onChange={(e) => setMorningGunOption(e.target.value)}
+                          className="w-full p-1 text-center text-xs border-b border-gray-300 focus:outline-none"
+                      >
+                          <option value="">Select Gun</option>
+                          <option value="SP">SP</option>
+                          <option value="DP">DP</option>
+                      </select>
+                  </div>
+                  <div className="print-only text-center font-bold">
+                      {morningGunOption}
+                  </div>
+                </td>
               </tr>
               <tr>
                 <td className="border p-2">कु.</td>
@@ -502,7 +562,22 @@ const ReceiptForm = ({ businessName }) => {
                   </div>
                 </td>
                 <td className="border p-2 text-center">{eveningCalculations.pan.toFixed(0)}</td>
-                <td className="border p-2"></td>
+                <td className="border p-2">
+                  <div className="no-print">
+                    <select
+                      value={eveningGunOption}
+                      onChange={(e) => setEveningGunOption(e.target.value)}
+                      className="w-full p-1 text-center text-xs border-b border-gray-300 focus:outline-none"
+                    >
+                      <option value="">Select Gun</option>
+                      <option value="SP">SP</option>
+                      <option value="DP">DP</option>
+                    </select>
+                  </div>
+                  <div className="print-only text-center font-bold">
+                    {eveningGunOption}
+                  </div>
+                </td>
               </tr>
               <tr>
                 <td className="border p-2">टो.</td>
@@ -513,7 +588,7 @@ const ReceiptForm = ({ businessName }) => {
                 <td className="border p-2"></td>
                 <td className="border p-2"></td>
               </tr>
-              <tr>
+              <tr className="no-print">
                 <td className="border p-2">क.</td>
                 <td className="border p-2 text-right">{deduction.toFixed(2)}</td>
                 <td className="border p-2"></td>
@@ -621,6 +696,7 @@ const ReceiptForm = ({ businessName }) => {
                 customerName: "",
                 customerAddress: "",
                 customerContactNo: "",
+                customerCompany: "",
                 day: dayjs().format("dddd"),
                 date: dayjs().format("DD-MM-YYYY"),
                 morningIncome: "",
