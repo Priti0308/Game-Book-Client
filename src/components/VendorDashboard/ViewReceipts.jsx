@@ -9,54 +9,97 @@ dayjs.extend(customParseFormat);
 
 const API_BASE_URI = "https://game-book.onrender.com";
 
-// A component to render the printable receipt view, styled like ReceiptForm.jsx
+// THIS IS THE FIX: Add the missing helper function
+const toNum = (value) => Number(value) || 0;
+
+// A fully detailed and accurate component for printing receipts.
 const PrintableReceipt = React.forwardRef(({ receiptData }, ref) => {
   if (!receiptData) return null;
 
+  // Re-calculate jamaTotal for accuracy in print view, as it's not saved in the DB
+  const jamaTotal = toNum(receiptData.afterDeduction) + toNum(receiptData.payment) + toNum(receiptData.advanceAmount);
+
   return (
-    <div ref={ref} className="printable-area p-8 font-sans bg-white" style={{ width: '210mm', minHeight: '297mm', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div ref={ref} className="printable-area p-8 font-sans bg-white text-sm" style={{ width: '210mm', minHeight: '297mm', margin: '0 auto', boxSizing: 'border-box' }}>
+        {/* --- Header --- */}
         <div className="text-center mb-4">
-          <h2 className="text-center font-bold text-xl">{receiptData.businessName || "आपले दुकान"}</h2>
+            <h2 className="text-center font-bold text-2xl">{receiptData.businessName}</h2>
         </div>
-        <div className="flex justify-between items-center mb-4 text-sm">
-          <div className="flex items-center">
-            <span className="mr-2">नांव:–</span>
-            <span className="font-semibold">{receiptData.customerName}</span>
-          </div>
-          <div className="text-right">
-            <div>वार:- {receiptData.day}</div>
-            <div>दि:- {dayjs(receiptData.date).format("DD-MM-YYYY")}</div>
-          </div>
+        <div className="flex justify-between items-start mb-2 text-sm">
+            <div className="w-2/5 space-y-1">
+                <div><strong>Name:</strong> {receiptData.customerName || "N/A"}</div>
+            </div>
+            <div className="w-1/5 flex flex-col items-center">
+                <div className="p-2 border border-black rounded-lg w-full space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                        <span className="font-bold">Open:</span>
+                        <span>{receiptData.openCloseValues?.open}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="font-bold">Close:</span>
+                        <div className="flex gap-1">
+                            <span>{receiptData.openCloseValues?.close1}</span>
+                            <span>-</span>
+                            <span>{receiptData.openCloseValues?.close2}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-2 text-center text-xs">
+                    <strong>Company:</strong> {receiptData.customerCompany || "N/A"}
+                </div>
+            </div>
+            <div className="w-2/5 text-right">
+                <div>वार:- <span className="font-semibold">{receiptData.day}</span></div>
+                <div>दि:- <span className="font-semibold">{dayjs(receiptData.date).format("DD-MM-YYYY")}</span></div>
+            </div>
         </div>
-        <table className="w-full text-sm border-collapse border border-black">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border border-black p-2 text-center">ओ.</th>
-              <th className="border border-black p-2 text-center">रक्कम</th>
-              <th className="border border-black p-2 text-center">ओ.</th>
-              <th className="border border-black p-2 text-center">जोड</th>
-              <th className="border border-black p-2 text-center">को.</th>
-              <th className="border border-black p-2 text-center">पान</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td className="border border-black p-2">आ.</td><td className="border border-black p-2 text-right">{receiptData.morningIncome}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">कु.</td><td className="border border-black p-2 text-right">{receiptData.eveningIncome}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">टो.</td><td className="border border-black p-2 text-right">{receiptData.totalIncome}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">क.</td><td className="border border-black p-2 text-right">{receiptData.deduction}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">टो.</td><td className="border border-black p-2 text-right">{receiptData.afterDeduction}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">पें.</td><td className="border border-black p-2 text-right">{receiptData.payment}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">टो.</td><td className="border border-black p-2 text-right">{receiptData.remainingBalance}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">मा.</td><td className="border border-black p-2 text-right">{receiptData.pendingAmount}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-            <tr><td className="border border-black p-2">टो.</td><td className="border border-black p-2 text-right font-bold">{receiptData.finalTotal}</td><td colSpan="4" className="border border-black p-2"></td></tr>
-          </tbody>
+
+        {/* --- Main Table --- */}
+        <table className="w-full text-xs border-collapse border border-black">
+            <thead className="bg-gray-100">
+                <tr>
+                    <th className="border border-black p-1 text-center">ओ.</th>
+                    <th className="border border-black p-1 text-center">रक्कम</th>
+                    <th className="border border-black p-1 text-center">ओ.</th>
+                    <th className="border border-black p-1 text-center">जोड</th>
+                    <th className="border border-black p-1 text-center">को.</th>
+                    <th className="border border-black p-1 text-center">पान</th>
+                    <th className="border border-black p-1 text-center">गुण</th>
+                </tr>
+            </thead>
+            <tbody>
+                {receiptData.gameRows?.map((row, index) => (
+                    <tr key={index}>
+                        <td className="border border-black p-1">{row.type}</td>
+                        <td className="border border-black p-1 text-right">{toNum(row.income).toFixed(2)}</td>
+                        <td className="border border-black p-1 text-right">{row.o}</td>
+                        <td className="border border-black p-1 text-right">{row.jod}</td>
+                        <td className="border border-black p-1 text-right">{row.ko}</td>
+                        <td className="border border-black p-1 text-center">{row.pan}</td>
+                        <td className="border border-black p-1 text-center">{row.gun}</td>
+                    </tr>
+                ))}
+                <tr><td className="border border-black p-1">टो.</td><td className="border border-black p-1 text-right font-bold">{toNum(receiptData.totalIncome).toFixed(2)}</td><td colSpan="5" className="border border-black p-1"></td></tr>
+                <tr><td className="border border-black p-1">क.</td><td className="border border-black p-1 text-right">{toNum(receiptData.deduction).toFixed(2)}</td><td colSpan="5" className="border border-black p-1"></td></tr>
+                <tr><td className="border border-black p-1">टो.</td><td className="border border-black p-1 text-right font-bold">{toNum(receiptData.afterDeduction).toFixed(2)}</td><td colSpan="5" className="border border-black p-1"></td></tr>
+                <tr><td className="border border-black p-1">पें.</td><td className="border border-black p-1 text-right font-bold">{toNum(receiptData.payment).toFixed(2)}</td><td colSpan="5" className="border border-black p-1"></td></tr>
+                <tr><td className="border border-black p-1">टो.</td><td className="border border-black p-1 text-right font-bold">{toNum(receiptData.remainingBalance).toFixed(2)}</td><td colSpan="5" className="border border-black p-1"></td></tr>
+                <tr><td className="border border-black p-1">मा.</td><td className="border border-black p-1 text-right">{toNum(receiptData.pendingAmount).toFixed(2)}</td><td colSpan="5" className="border border-black p-1"></td></tr>
+                <tr><td className="border border-black p-1">टो.</td><td className="border border-black p-1 text-right font-bold">{toNum(receiptData.finalTotal).toFixed(2)}</td><td colSpan="5" className="border border-black p-1"></td></tr>
+            </tbody>
         </table>
-        <div className="flex justify-between items-end mt-4">
-          <div className="w-1/2 p-2 border border-black rounded-md h-20"></div>
-          <div className="w-1/2 ml-2 p-2 border border-black rounded-md">
-            <div className="flex items-center justify-between"><span>आड:-</span><span>{receiptData.advanceAmount}</span></div>
-            <div className="flex items-center justify-between mt-2"><span>टो:-</span><span className="font-bold">{receiptData.totalWithAdvance}</span></div>
-          </div>
+
+        {/* --- Footer --- */}
+        <div className="flex justify-between mt-4 text-xs">
+            <div className="w-1/2 mr-2 p-2 border border-black rounded-md space-y-1">
+                <div className="flex justify-between"><span>जमा:-</span><span className="font-semibold">{toNum(receiptData.afterDeduction).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>टो:-</span><span className="font-semibold">{jamaTotal.toFixed(2)}</span></div>
+            </div>
+            <div className="w-1/2 ml-2 p-2 border border-black rounded-md space-y-1">
+                <div className="flex justify-between"><span>आड:-</span><span>{toNum(receiptData.advanceAmount).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>कटिंग:-</span><span>{toNum(receiptData.cuttingAmount).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>टो:-</span><span className="font-semibold">{toNum(receiptData.totalWithAdvance).toFixed(2)}</span></div>
+            </div>
         </div>
     </div>
   );
@@ -114,16 +157,14 @@ const ViewReceipts = () => {
   const handlePrint = (receipt) => {
     setReceiptToPrint(receipt);
     setTimeout(() => {
-      if (printRef.current) {
         window.print();
         setReceiptToPrint(null);
-      }
     }, 100);
   };
 
   const receiptsWithDisplaySrNo = receipts.map((receipt, index) => ({
     ...receipt,
-    displaySrNo: index + 1,
+    displaySrNo: receipts.length - index,
   }));
 
   const filteredReceipts = receiptsWithDisplaySrNo.filter((receipt) => {
@@ -145,35 +186,18 @@ const ViewReceipts = () => {
 
   return (
     <>
-      <div className="absolute top-0 left-0 -z-10 opacity-0 print:z-auto print:opacity-100">
+      <div className="hidden print:block">
           {receiptToPrint && <PrintableReceipt receiptData={receiptToPrint} ref={printRef} />}
       </div>
-       <style>
-        {`
+      <style>{`
           @media print {
-            body * {
-              visibility: hidden;
-            }
-            .printable-area, .printable-area * {
-              visibility: visible;
-            }
-            .printable-area {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-              height: 100%;
-              margin: 0;
-              padding: 0;
-              border: none;
-            }
-            .no-print {
-              display: none;
-            }
+            body * { visibility: hidden; }
+            .printable-area, .printable-area * { visibility: visible; }
+            .printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .print-hidden { display: none; }
           }
-        `}
-      </style>
-      <div className="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8 no-print">
+      `}</style>
+      <div className="bg-gray-50 min-h-screen p-4 sm:p-6 lg:p-8 print-hidden">
         <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
         <div className="max-w-7xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -210,7 +234,7 @@ const ViewReceipts = () => {
                       <td className="py-4 px-4 text-sm font-bold text-gray-800 w-16">{receipt.displaySrNo}</td>
                       <td className="py-4 px-4 text-sm text-gray-800">{receipt.customerName}</td>
                       <td className="py-4 px-4 text-sm text-gray-500">{dayjs(receipt.date).format("DD-MM-YYYY")}</td>
-                      <td className="py-4 px-4 text-sm text-gray-800 font-semibold">₹{receipt.finalTotal}</td>
+                      <td className="py-4 px-4 text-sm text-gray-800 font-semibold">₹{toNum(receipt.finalTotal).toFixed(2)}</td>
                       <td className="py-4 px-4 text-sm">
                         <div className="flex gap-4">
                           <button onClick={() => handlePrint(receipt)} className="text-green-600 hover:text-green-800 transition" title="Print"><FaPrint size={18} /></button>
@@ -234,4 +258,3 @@ const ViewReceipts = () => {
 };
 
 export default ViewReceipts;
-

@@ -34,34 +34,53 @@ const getInitialFormData = (businessName) => ({
   cuttingAmount: "",
 });
 
-// Pan is now a direct property of the row, not in multipliers
 const initialGameRows = [
-    { id: 1, type: 'आ.', income: '', o: '', jod: '', ko: '', pan: '100', gun: 'SP', multipliers: { o: 8, jod: 80, ko: 8 } },
-    { id: 2, type: 'कु.', income: '', o: '', jod: '', ko: '', pan: '120', gun: 'SP', multipliers: { o: 9, jod: 90, ko: 9 } }
+  {
+    id: 1,
+    type: "आ.",
+    income: "",
+    o: "",
+    jod: "",
+    ko: "",
+    pan: "100",
+    gun: "SP",
+    multipliers: { o: 8, jod: 80, ko: 8 },
+  },
+  {
+    id: 2,
+    type: "कु.",
+    income: "",
+    o: "",
+    jod: "",
+    ko: "",
+    pan: "120",
+    gun: "SP",
+    multipliers: { o: 9, jod: 90, ko: 9 },
+  },
 ];
 
-
 const ReceiptForm = ({ businessName }) => {
-  const [formData, setFormData] = useState(() => getInitialFormData(businessName));
+  const [formData, setFormData] = useState(() =>
+    getInitialFormData(businessName)
+  );
   const [gameRows, setGameRows] = useState(initialGameRows);
-  
-  // New state for the Open/Close input boxes
   const [openCloseValues, setOpenCloseValues] = useState({
-    open: '',
-    close1: '',
-    close2: ''
+    open: "",
+    close1: "",
+    close2: "",
   });
-
   const [customerList, setCustomerList] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const printRef = useRef();
   const token = localStorage.getItem("token");
 
+  const formRef = useRef(null);
+
   const clearForm = useCallback(() => {
     setFormData(getInitialFormData(formData.businessName));
     setGameRows(initialGameRows);
-    setOpenCloseValues({ open: '', close1: '', close2: ''}); // Clear open/close values
+    setOpenCloseValues({ open: "", close1: "", close2: "" });
   }, [formData.businessName]);
 
   const fetchCustomers = useCallback(async () => {
@@ -100,63 +119,82 @@ const ReceiptForm = ({ businessName }) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-  
+
   const handleCustomerChange = (e) => {
     const selectedCustomerId = e.target.value;
     const selectedCustomer = customerList.find(
       (c) => c._id === selectedCustomerId
     );
+
+    let lastPendingAmount = "";
+    if (selectedCustomerId) {
+      const customerReceipts = receipts.filter(
+        (r) => r.customerId === selectedCustomerId
+      );
+      if (customerReceipts.length > 0) {
+        customerReceipts.sort((a, b) => new Date(b.date) - new Date(a.date));
+        if (customerReceipts[0].finalTotal) {
+          lastPendingAmount = customerReceipts[0].finalTotal.toString();
+        }
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       customerId: selectedCustomer?._id || "",
       customerName: selectedCustomer?.name || "",
       customerAddress: selectedCustomer?.address || "",
       customerContactNo: selectedCustomer?.contact || "",
+      pendingAmount: lastPendingAmount,
     }));
   };
 
-  // Handler for the new Open/Close inputs
   const handleOpenCloseChange = (e) => {
     const { name, value } = e.target;
-    setOpenCloseValues(prev => ({ ...prev, [name]: value }));
+    setOpenCloseValues((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleRowChange = (index, e) => {
-      const { name, value } = e.target;
-      const updatedRows = [...gameRows];
-      updatedRows[index] = { ...updatedRows[index], [name]: value };
-      setGameRows(updatedRows);
+    const { name, value } = e.target;
+    const updatedRows = [...gameRows];
+    updatedRows[index] = { ...updatedRows[index], [name]: value };
+    setGameRows(updatedRows);
   };
 
   const addRow = () => {
-      if (gameRows.length < 10) {
-          const newRow = {
-              id: Date.now(),
-              type: 'जा.',
-              income: '', o: '', jod: '', ko: '', pan: '', gun: 'SP',
-              multipliers: { o: 9, jod: 90, ko: 9 }
-          };
-          setGameRows([...gameRows, newRow]);
-      } else {
-          toast.warn("You can add a maximum of 10 rows.");
-      }
+    if (gameRows.length < 10) {
+      const newRow = {
+        id: Date.now(),
+        type: "जा.",
+        income: "",
+        o: "",
+        jod: "",
+        ko: "",
+        pan: "",
+        gun: "SP",
+        multipliers: { o: 9, jod: 90, ko: 9 },
+      };
+      setGameRows([...gameRows, newRow]);
+    } else {
+      toast.warn("You can add a maximum of 10 rows.");
+    }
   };
 
   const removeRow = (index) => {
-      if (gameRows.length > 2) {
-          const updatedRows = gameRows.filter((_, i) => i !== index);
-          setGameRows(updatedRows);
-      }
+    if (gameRows.length > 2) {
+      const updatedRows = gameRows.filter((_, i) => i !== index);
+      setGameRows(updatedRows);
+    }
   };
 
   const toNum = (value) => Number(value) || 0;
-  
+
   const totalIncome = gameRows.reduce((sum, row) => sum + toNum(row.income), 0);
   const payment = gameRows.reduce((sum, row) => {
-      const oPayment = toNum(row.o) * row.multipliers.o;
-      const jodPayment = toNum(row.jod) * row.multipliers.jod;
-      const koPayment = toNum(row.ko) * row.multipliers.ko;
-      return sum + oPayment + jodPayment + koPayment;
+    const oPayment = toNum(row.o) * row.multipliers.o;
+    const jodPayment = toNum(row.jod) * row.multipliers.jod;
+    const koPayment = toNum(row.ko) * row.multipliers.ko;
+    return sum + oPayment + jodPayment + koPayment;
   }, 0);
 
   const deduction = totalIncome * 0.1;
@@ -181,11 +219,19 @@ const ReceiptForm = ({ businessName }) => {
     }
     const receiptToSend = {
       ...formData,
-      openCloseValues, // Add the new open/close values
-      gameRows: gameRows.map(({multipliers, ...row}) => row),
+      openCloseValues,
+      gameRows: gameRows.map(({ multipliers, ...row }) => row),
       date: dayjs(formData.date, "DD-MM-YYYY").toISOString(),
-      totalIncome, deduction, afterDeduction, payment, remainingBalance, finalTotal,
-      totalWithAdvance, pendingAmount, advanceAmount, cuttingAmount,
+      totalIncome,
+      deduction,
+      afterDeduction,
+      payment,
+      remainingBalance,
+      finalTotal,
+      totalWithAdvance,
+      pendingAmount,
+      advanceAmount,
+      cuttingAmount,
     };
 
     try {
@@ -220,13 +266,16 @@ const ReceiptForm = ({ businessName }) => {
     const receipt = receipts.find((r) => r._id === id);
     if (!receipt) return;
     const customer = customerList.find((c) => c._id === receipt.customerId);
-    
+
     let rowsToSet = initialGameRows;
     if (receipt.gameRows && receipt.gameRows.length > 0) {
-        rowsToSet = receipt.gameRows.map(row => ({
-            ...row,
-            multipliers: row.type === 'आ.' ? initialGameRows[0].multipliers : initialGameRows[1].multipliers
-        }));
+      rowsToSet = receipt.gameRows.map((row) => ({
+        ...row,
+        multipliers:
+          row.type === "आ."
+            ? initialGameRows[0].multipliers
+            : initialGameRows[1].multipliers,
+      }));
     }
 
     setFormData({
@@ -240,10 +289,13 @@ const ReceiptForm = ({ businessName }) => {
     });
 
     setGameRows(rowsToSet);
-    // Set open/close values if they exist on the receipt
-    setOpenCloseValues(receipt.openCloseValues || { open: '', close1: '', close2: ''});
+    setOpenCloseValues(
+      receipt.openCloseValues || { open: "", close1: "", close2: "" }
+    );
+
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  
+
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this receipt?")) {
       try {
@@ -270,31 +322,61 @@ const ReceiptForm = ({ businessName }) => {
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8 font-sans">
       <ToastContainer position="top-right" autoClose={3000} />
-      <style>{`@media print { body * { visibility: hidden; } .printable-area, .printable-area * { visibility: visible; } .printable-area { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; margin: 0; padding: 1rem !important; } .no-print { display: none !important; } .printable-area .business-name-input, .printable-area input, .printable-area select { border: none !important; background: transparent !important; padding: 0; color: black !important; -webkit-appearance: none; -moz-appearance: none; text-align: inherit; } .printable-area select { appearance: none; } .printable-area strong { font-weight: bold !important; } }`}</style>
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
+      <style>{`
+        @media print { 
+            body * { visibility: hidden; } 
+            .printable-area, .printable-area * { visibility: visible; } 
+            .printable-area { 
+                position: absolute; left: 0; top: 0; width: 100%; height: auto; 
+                border: none !important; box-shadow: none !important; 
+                margin: 0; padding: 1rem !important; 
+            } 
+            .print-hidden { display: none !important; } 
+            .printable-area input, .printable-area select { 
+                border: none !important; background: transparent !important; 
+                padding: 0; color: black !important; -webkit-appearance: none; 
+                -moz-appearance: none; appearance: none; text-align: inherit; 
+                font-size: inherit; font-family: inherit; font-weight: inherit;
+            }
+            .printable-area input[type=number]::-webkit-inner-spin-button,
+            .printable-area input[type=number]::-webkit-outer-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+            }
+        }`}</style>
+
+      <div
+        ref={formRef}
+        className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8"
+      >
         <div
           ref={printRef}
           className="printable-area p-4 border border-gray-400 rounded-lg"
         >
           <div className="text-center mb-4">
+            {/* Input for screen view (hidden on print) */}
             <input
               type="text"
               name="businessName"
               value={formData.businessName}
               onChange={handleChange}
-              className="business-name-input text-center font-bold text-2xl p-1 w-full focus:outline-none"
+              className="print-hidden business-name-input text-center font-bold text-2xl p-1 w-full focus:outline-none"
               placeholder="Business Name"
             />
+            {/* Static h2 for print view (hidden on screen) */}
+            <h2 className="hidden print:block text-center font-bold text-2xl">
+              {formData.businessName}
+            </h2>
           </div>
           <div className="flex flex-col sm:flex-row justify-between items-start mb-2 text-sm">
             <div className="w-full sm:w-2/5 mb-4 sm:mb-0">
-              <div className="flex items-center mb-2 no-print">
+              <div className="flex items-center mb-2 print-hidden">
                 <strong className="mr-2">Customer:</strong>
                 <select
                   name="customerId"
                   value={formData.customerId}
                   onChange={handleCustomerChange}
-                  className="p-1 w-30 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="p-1 w-48 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select Customer</option>
                   {customerList.map((c) => (
@@ -307,48 +389,47 @@ const ReceiptForm = ({ businessName }) => {
 
               <div className="space-y-1">
                 <div>
-                  <strong>Name:</strong> {formData.customerName || ""}
+                  <strong>Name:</strong> {formData.customerName || "N/A"}
                 </div>
                 <div className="text-xs">
-                  <strong>Address:</strong> {formData.customerAddress || ""}
+                  <strong>Address:</strong> {formData.customerAddress || "N/A"}
                 </div>
                 <div className="text-xs">
                   <strong>Contact No:</strong>{" "}
-                  {formData.customerContactNo || ""}
+                  {formData.customerContactNo || "N/A"}
                 </div>
               </div>
             </div>
             <div className="w-full sm:w-1/5 flex flex-col items-center mb-2">
-              {/* NEW OPEN/CLOSE BOX */}
               <div className="p-2 border border-gray-500 rounded-lg w-full space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                    <span className="font-bold">Open:</span>
-                    <input
-                        type="number"
-                        name="open"
-                        value={openCloseValues.open}
-                        onChange={handleOpenCloseChange}
-                        className="w-18 text-center border border-gray-300 rounded"
-                    />
+                  <span className="font-bold">Open:</span>
+                  <input
+                    type="number"
+                    name="open"
+                    value={openCloseValues.open}
+                    onChange={handleOpenCloseChange}
+                    className="w-20 text-center border border-gray-300 rounded"
+                  />
                 </div>
                 <div className="flex items-center justify-between">
-                    <span className="font-bold">Close:</span>
-                    <div className="flex gap-1">
-                        <input
-                            type="number"
-                            name="close1"
-                            value={openCloseValues.close1}
-                            onChange={handleOpenCloseChange}
-                            className="w-9 text-center border border-gray-300 rounded"
-                        />
-                        <input
-                            type="number"
-                            name="close2"
-                            value={openCloseValues.close2}
-                            onChange={handleOpenCloseChange}
-                            className="w-9 text-center border border-gray-300 rounded"
-                        />
-                    </div>
+                  <span className="font-bold">Close:</span>
+                  <div className="flex gap-1">
+                    <input
+                      type="number"
+                      name="close1"
+                      value={openCloseValues.close1}
+                      onChange={handleOpenCloseChange}
+                      className="w-10 text-center border border-gray-300 rounded"
+                    />
+                    <input
+                      type="number"
+                      name="close2"
+                      value={openCloseValues.close2}
+                      onChange={handleOpenCloseChange}
+                      className="w-10 text-center border border-gray-300 rounded"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -358,7 +439,7 @@ const ReceiptForm = ({ businessName }) => {
                   name="customerCompany"
                   value={formData.customerCompany}
                   onChange={handleChange}
-                  className="ml-2 bg-transparent border rounded p-1 text-xs"
+                  className="ml-2 bg-transparent border rounded p-1 text-xs print-hidden"
                 >
                   <option value="">Choose...</option>
                   {COMPANY_NAMES.map((company, index) => (
@@ -367,6 +448,9 @@ const ReceiptForm = ({ businessName }) => {
                     </option>
                   ))}
                 </select>
+                <span className="hidden print:inline ml-2">
+                  {formData.customerCompany || "N/A"}
+                </span>
               </div>
             </div>
             <div className="w-full sm:w-2/5 text-right">
@@ -412,7 +496,7 @@ const ReceiptForm = ({ businessName }) => {
                         value={row.o}
                         onChange={(e) => handleRowChange(index, e)}
                         className="w-14 text-right bg-transparent border-b"
-                      />
+                      />{" "}
                       <span className="ml-1 text-xs">
                         *{row.multipliers.o}={toNum(row.o) * row.multipliers.o}
                       </span>
@@ -426,9 +510,10 @@ const ReceiptForm = ({ businessName }) => {
                         value={row.jod}
                         onChange={(e) => handleRowChange(index, e)}
                         className="w-14 text-right bg-transparent border-b"
-                      />
+                      />{" "}
                       <span className="ml-1 text-xs">
-                        *{row.multipliers.jod}={toNum(row.jod) * row.multipliers.jod}
+                        *{row.multipliers.jod}=
+                        {toNum(row.jod) * row.multipliers.jod}
                       </span>
                     </div>
                   </td>
@@ -440,38 +525,42 @@ const ReceiptForm = ({ businessName }) => {
                         value={row.ko}
                         onChange={(e) => handleRowChange(index, e)}
                         className="w-14 text-right bg-transparent border-b"
-                      />
+                      />{" "}
                       <span className="ml-1 text-xs">
-                        *{row.multipliers.ko}={toNum(row.ko) * row.multipliers.ko}
+                        *{row.multipliers.ko}=
+                        {toNum(row.ko) * row.multipliers.ko}
                       </span>
                     </div>
                   </td>
-                  {/* EDITABLE PAN FIELD */}
                   <td className="border p-2 text-center">
                     <input
-                        type="number"
-                        name="pan"
-                        value={row.pan}
-                        onChange={(e) => handleRowChange(index, e)}
-                        className="w-16 text-center bg-transparent border-b"
+                      type="number"
+                      name="pan"
+                      value={row.pan}
+                      onChange={(e) => handleRowChange(index, e)}
+                      className="w-16 text-center bg-transparent border-b"
                     />
                   </td>
                   <td className="border p-2 text-center">
                     <div className="flex items-center justify-center space-x-1">
-                        <select
-                            name="gun"
-                            value={row.gun}
-                            onChange={(e) => handleRowChange(index, e)}
-                            className="bg-transparent border rounded p-1"
+                      <select
+                        name="gun"
+                        value={row.gun}
+                        onChange={(e) => handleRowChange(index, e)}
+                        className="bg-transparent border rounded p-1 print-hidden"
+                      >
+                        <option value="SP">SP</option>
+                        <option value="DP">DP</option>
+                      </select>
+                      <span className="hidden print:inline">{row.gun}</span>
+                      {index > 1 && (
+                        <button
+                          onClick={() => removeRow(index)}
+                          className="print-hidden text-red-500 hover:text-red-700"
                         >
-                            <option value="SP">SP</option>
-                            <option value="DP">DP</option>
-                        </select>
-                        {index > 1 && (
-                            <button onClick={() => removeRow(index)} className="no-print text-red-500 hover:text-red-700">
-                                <FaMinus size={12}/>
-                            </button>
-                        )}
+                          <FaMinus size={12} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -518,8 +607,8 @@ const ReceiptForm = ({ businessName }) => {
                     type="number"
                     name="pendingAmount"
                     value={formData.pendingAmount}
-                    onChange={handleChange}
-                    className="w-full text-right bg-transparent border-b focus:outline-none"
+                    readOnly
+                    className="w-full text-right bg-gray-100 border-b focus:outline-none"
                   />
                 </td>
                 <td colSpan="5" className="border p-2"></td>
@@ -534,10 +623,13 @@ const ReceiptForm = ({ businessName }) => {
             </tbody>
           </table>
 
-          <div className="no-print mt-2 flex justify-end">
-                <button onClick={addRow} className="flex items-center px-3 py-1 bg-blue-500 text-white rounded-md shadow-sm hover:bg-blue-600 text-sm">
-                    <FaPlus size={12} className="mr-1"/> Add Row
-                </button>
+          <div className="print-hidden mt-2 flex justify-end">
+            <button
+              onClick={addRow}
+              className="flex items-center px-3 py-1 bg-blue-500 text-white rounded-md shadow-sm hover:bg-blue-600 text-sm"
+            >
+              <FaPlus size={12} className="mr-1" /> Add Row
+            </button>
           </div>
 
           <div className="flex justify-between mt-4">
@@ -574,14 +666,12 @@ const ReceiptForm = ({ businessName }) => {
               </div>
               <div className="flex justify-between">
                 <span>टो:-</span>
-                <span className="font-bold">
-                  {totalWithAdvance.toFixed(2)}
-                </span>
+                <span className="font-bold">{totalWithAdvance.toFixed(2)}</span>
               </div>
             </div>
           </div>
         </div>
-        <div className="no-print flex justify-center mt-6 space-x-4">
+        <div className="print-hidden flex justify-center mt-6 space-x-4">
           <button
             onClick={handleSave}
             className="px-6 py-2 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600"
@@ -603,7 +693,7 @@ const ReceiptForm = ({ businessName }) => {
           </button>
         </div>
       </div>
-      <div className="no-print mt-8 max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8">
+      <div className="print-hidden mt-8 max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8">
         <h2 className="text-2xl font-bold mb-4">Saved Receipts</h2>
         <input
           type="text"
@@ -620,9 +710,7 @@ const ReceiptForm = ({ businessName }) => {
                   Customer
                 </th>
                 <th className="px-6 py-3 text-left text-xs uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs uppercase">
-                  Total
-                </th>
+                <th className="px-6 py-3 text-left text-xs uppercase">Total</th>
                 <th className="px-6 py-3 text-center text-xs uppercase">
                   Actions
                 </th>
@@ -636,7 +724,9 @@ const ReceiptForm = ({ businessName }) => {
                     <td className="px-6 py-4">
                       {dayjs(r.date).format("DD-MM-YYYY")}
                     </td>
-                    <td className="px-6 py-4">{r.finalTotal && r.finalTotal.toFixed(2)}</td>
+                    <td className="px-6 py-4">
+                      {r.finalTotal && r.finalTotal.toFixed(2)}
+                    </td>
                     <td className="px-6 py-4 text-center space-x-3">
                       <button
                         onClick={() => handleEdit(r._id)}
@@ -661,10 +751,7 @@ const ReceiptForm = ({ businessName }) => {
                 ))
               ) : (
                 <tr>
-                  <td
-                    colSpan="4"
-                    className="text-center py-4 text-gray-500"
-                  >
+                  <td colSpan="4" className="text-center py-4 text-gray-500">
                     No receipts found.
                   </td>
                 </tr>
