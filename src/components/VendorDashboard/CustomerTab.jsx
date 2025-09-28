@@ -8,21 +8,10 @@ import {
   FaSave,
   FaTimes,
   FaUserPlus,
-  FaBuilding,
 } from "react-icons/fa";
 
-// API base URL - It's good practice to have this in a config file
+// API base URL
 const API_BASE_URI = "https://game-book.onrender.com";
-
-// --- NEW: Fixed list of company names from your image ---
-const COMPANY_NAMES = [
-  "कल्याण",
-  "मेन बाजार",
-  "श्रीदेवी",
-  "श्रीदेवी नाईट",
-  "मिलन डे",
-  "मिलन नाईट",
-];
 
 const CustomerTab = () => {
   // --- STATE MANAGEMENT ---
@@ -31,7 +20,6 @@ const CustomerTab = () => {
     name: "",
     contact: "",
     address: "",
-    company: "", // Added company field
   });
   const [search, setSearch] = useState("");
   const [editingCustomerId, setEditingCustomerId] = useState(null);
@@ -39,7 +27,6 @@ const CustomerTab = () => {
     name: "",
     contact: "",
     address: "",
-    company: "", // Added company field
   });
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,19 +69,26 @@ const CustomerTab = () => {
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
-    if (!newCustomer.name || !newCustomer.contact || !newCustomer.company) {
-      toast.warn("Customer Name, Contact, and Company are required.");
+    if (!newCustomer.name || !newCustomer.contact) {
+      toast.warn("Customer Name and Contact are required.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await axios.post(`${API_BASE_URI}/api/customers`, newCustomer, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchCustomers();
-      // Reset form including the new company field
-      setNewCustomer({ name: "", contact: "", address: "", company: "" });
+      // Get the new customer data from the API response
+      const res = await axios.post(
+        `${API_BASE_URI}/api/customers`,
+        newCustomer,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      // Add the new customer directly to the state
+      setCustomers((prevCustomers) => [...prevCustomers, res.data.customer]);
+      
+      setNewCustomer({ name: "", contact: "", address: "" });
       toast.success("Customer added successfully!");
     } catch (err) {
       console.error("Error adding customer:", err);
@@ -110,7 +104,6 @@ const CustomerTab = () => {
       name: customer.name,
       contact: customer.contact,
       address: customer.address || "",
-      company: customer.company || "", // Populate company for editing
     });
   };
 
@@ -121,13 +114,22 @@ const CustomerTab = () => {
 
   const saveEdit = async (id) => {
     try {
+      // Get the updated customer data from the API response
       const res = await axios.put(
         `${API_BASE_URI}/api/customers/${id}`,
         editForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      // Use fetchCustomers to get the fresh sorted list
-      fetchCustomers();
+      
+      const updatedCustomer = res.data.customer;
+
+      // Find and update the customer in the state
+      setCustomers((prevCustomers) =>
+        prevCustomers.map((customer) =>
+          customer._id === id ? updatedCustomer : customer
+        )
+      );
+      
       setEditingCustomerId(null);
       toast.success("Customer updated successfully!");
     } catch (err) {
@@ -168,10 +170,8 @@ const CustomerTab = () => {
 
   const filteredCustomers = customersWithDisplaySrNo.filter((customer) => {
     const searchTerm = search.toLowerCase();
-    // Updated to include searching by company name
     return (
       customer.name.toLowerCase().includes(searchTerm) ||
-      (customer.company && customer.company.toLowerCase().includes(searchTerm)) ||
       customer.displaySrNo.toString().includes(searchTerm)
     );
   });
@@ -202,7 +202,7 @@ const CustomerTab = () => {
           <h2 className="text-lg font-semibold mb-3 text-gray-700 flex items-center gap-2">
             <FaUserPlus className="text-purple-600" /> Add New Customer
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Sr.No */}
             <div>
               <label className="font-semibold text-gray-600 block mb-1 text-sm">
@@ -243,27 +243,6 @@ const CustomerTab = () => {
                 className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition"
               />
             </div>
-            {/* NEW: Company Dropdown */}
-            <div>
-              <label className="font-semibold text-gray-600 block mb-1 text-sm">
-                Company <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="company"
-                value={newCustomer.company}
-                onChange={handleNewCustomerChange}
-                className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition bg-white"
-              >
-                <option value="" disabled>
-                  Select a Company
-                </option>
-                {COMPANY_NAMES.map((company, index) => (
-                  <option key={index} value={company}>
-                    {index + 1}. {company}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
           <div className="mt-4">
             <label className="font-semibold text-gray-600 block mb-1 text-sm">
@@ -301,7 +280,7 @@ const CustomerTab = () => {
         </h2>
         <input
           type="text"
-          placeholder="Search by Sr.No, Name, or Company..."
+          placeholder="Search by Sr.No or Name..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="border border-gray-300 rounded-lg p-2 w-full mb-4 focus:ring-1 focus:ring-purple-500 transition"
@@ -316,10 +295,6 @@ const CustomerTab = () => {
                 </th>
                 <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
                   Name
-                </th>
-                {/* NEW: Company Header */}
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
-                  Company
                 </th>
                 <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
                   Contact
@@ -353,26 +328,6 @@ const CustomerTab = () => {
                         />
                       ) : (
                         customer.name
-                      )}
-                    </td>
-                    {/* NEW: Company Data Cell */}
-                    <td className="py-4 px-4">
-                      {editingCustomerId === customer._id ? (
-                        <select
-                          name="company"
-                          value={editForm.company}
-                          onChange={handleEditChange}
-                          className="border border-gray-300 rounded-lg p-1 w-full bg-white"
-                        >
-                          <option value="">Select Company</option>
-                          {COMPANY_NAMES.map((c, i) => (
-                            <option key={i} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        customer.company
                       )}
                     </td>
                     <td className="py-4 px-4">
@@ -439,7 +394,7 @@ const CustomerTab = () => {
               ) : (
                 <tr>
                   <td
-                    colSpan="6"
+                    colSpan="5"
                     className="text-center py-10 text-gray-500"
                   >
                     No customers found.
