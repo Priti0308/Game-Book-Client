@@ -220,22 +220,26 @@ const ReceiptForm = ({ businessName }) => {
 
     try {
       if (formData._id) {
-        await axios.put(
+        const res = await axios.put(
           `${API_BASE_URI}/api/receipts/${formData._id}`,
           receiptToSend,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        // Correctly update the single item in the state
+        setReceipts(receipts.map(r => r._id === formData._id ? res.data.receipt : r));
         toast.success("Receipt updated successfully!");
       } else {
-        await axios.post(
+        const res = await axios.post(
           `${API_BASE_URI}/api/receipts`,
           receiptToSend,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        // Correctly add the new item to the state
+        setReceipts([res.data.receipt, ...receipts]);
         toast.success("Receipt saved successfully!");
       }
       clearForm();
-      fetchReceipts();
+      // No longer need to call fetchReceipts() here
     } catch (error) {
       toast.error(error.response?.data?.message || "Error saving receipt");
       console.error("Save error:", error);
@@ -270,8 +274,9 @@ const ReceiptForm = ({ businessName }) => {
             await axios.delete(`${API_BASE_URI}/api/receipts/${id}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
+            // Correctly remove the item from state
+            setReceipts(receipts.filter(r => r._id !== id));
             toast.success("Receipt deleted successfully.");
-            fetchReceipts();
         } catch (error) {
             toast.error("Failed to delete receipt.");
             console.error("Delete error:", error);
@@ -315,7 +320,6 @@ const ReceiptForm = ({ businessName }) => {
                   {customerList.map((c) => (<option key={c._id} value={c._id}>{c.name}</option>))}
                 </select>
               </div>
-              <div className="space-y-1 mt-2"><div><strong>Name:</strong> {formData.customerName || "N/A"}</div></div>
             </div>
             <div className="w-full sm:w-1/3 flex flex-col items-center mb-2">
               <div className="p-2 border border-gray-500 rounded-lg w-full max-w-[220px] space-y-2 text-sm">
@@ -404,12 +408,12 @@ const ReceiptForm = ({ businessName }) => {
                 </colgroup>
                 <tbody>
                     <tr><td className="border p-2">टो.</td><td className="border p-2 text-right font-bold">{calculationResults.totalIncome.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
-                    <tr><td className="border p-2">क.</td><td className="border p-2 text-right">{calculationResults.deduction.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
+                    <tr><td className="border p-2">क.</td><td className="border p-2 text-right font-bold">{calculationResults.deduction.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
                     <tr><td className="border p-2">टो.</td><td className="border p-2 text-right font-bold">{calculationResults.afterDeduction.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
-                    <tr><td className="border p-2">पें.</td><td className="border p-2 text-right font-bold">{calculationResults.payment.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
-                    <tr><td className="border p-2">टो.</td><td className="border p-2 text-right font-bold">{calculationResults.remainingBalance.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
+                    <tr><td className="border p-2">पें.</td><td className="border p-2 text-right">{calculationResults.payment.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
+                    <tr><td className="border p-2">टो.</td><td className="border p-2 text-right">{calculationResults.remainingBalance.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
                     <tr><td className="border p-2">मा.</td><td className="border p-2"><input type="number" name="pendingAmount" value={formData.pendingAmount} readOnly className="w-full text-right bg-gray-100 border-b"/></td><td colSpan="5" className="border p-2"></td></tr>
-                    <tr><td className="border p-2">टो.</td><td className="border p-2 text-right font-bold">{calculationResults.finalTotal.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
+                    <tr><td className="border p-2">टो.</td><td className="border p-2 text-right">{calculationResults.finalTotal.toFixed(2)}</td><td colSpan="5" className="border p-2"></td></tr>
                     <tr className="bg-gray-50">
                         <td colSpan="2" className="border p-2 font-bold text-right align-middle">Total *</td>
                         <td className="border p-2 font-medium text-right">{calculationResults.oFinalTotal.toFixed(2)}</td>
