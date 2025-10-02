@@ -44,7 +44,6 @@ const initialGameRows = [
     ko: "",
     pan: "100",
     gun: "SP",
-    multipliers: { o: 8, jod: 80, ko: 8 },
   },
   {
     id: 2,
@@ -55,15 +54,23 @@ const initialGameRows = [
     ko: "",
     pan: "120",
     gun: "SP",
-    multipliers: { o: 9, jod: 90, ko: 9 },
   },
 ];
+
+const initialColumnMultipliers = {
+  o: 8,
+  jod: 80,
+  ko: 9,
+};
 
 const ReceiptForm = ({ businessName }) => {
   const [formData, setFormData] = useState(() =>
     getInitialFormData(businessName)
   );
   const [gameRows, setGameRows] = useState(initialGameRows);
+  const [columnMultipliers, setColumnMultipliers] = useState(
+    initialColumnMultipliers
+  );
   const [openCloseValues, setOpenCloseValues] = useState({
     open: "",
     close1: "",
@@ -80,6 +87,7 @@ const ReceiptForm = ({ businessName }) => {
   const clearForm = useCallback(() => {
     setFormData(getInitialFormData(formData.businessName));
     setGameRows(initialGameRows);
+    setColumnMultipliers(initialColumnMultipliers);
     setOpenCloseValues({ open: "", close1: "", close2: "" });
   }, [formData.businessName]);
 
@@ -161,18 +169,22 @@ const ReceiptForm = ({ businessName }) => {
     setGameRows(updatedRows);
   };
 
+  const handleMultiplierChange = (e) => {
+    const { name, value } = e.target;
+    setColumnMultipliers((prev) => ({ ...prev, [name]: value }));
+  };
+
   const addRow = () => {
     if (gameRows.length < 10) {
       const newRow = {
         id: Date.now(),
-        type: "जा.",
+        type: "",
         income: "",
         o: "",
         jod: "",
         ko: "",
         pan: "",
         gun: "SP",
-        multipliers: { o: 9, jod: 90, ko: 9 },
       };
       setGameRows([...gameRows, newRow]);
     } else {
@@ -189,13 +201,16 @@ const ReceiptForm = ({ businessName }) => {
 
   const toNum = (value) => Number(value) || 0;
 
+  const oTotal = gameRows.reduce((sum, row) => sum + toNum(row.o), 0);
+  const jodTotal = gameRows.reduce((sum, row) => sum + toNum(row.jod), 0);
+  const koTotal = gameRows.reduce((sum, row) => sum + toNum(row.ko), 0);
+
   const totalIncome = gameRows.reduce((sum, row) => sum + toNum(row.income), 0);
-  const payment = gameRows.reduce((sum, row) => {
-    const oPayment = toNum(row.o) * row.multipliers.o;
-    const jodPayment = toNum(row.jod) * row.multipliers.jod;
-    const koPayment = toNum(row.ko) * row.multipliers.ko;
-    return sum + oPayment + jodPayment + koPayment;
-  }, 0);
+
+  const payment =
+    oTotal * toNum(columnMultipliers.o) +
+    jodTotal * toNum(columnMultipliers.jod) +
+    koTotal * toNum(columnMultipliers.ko);
 
   const deduction = totalIncome * 0.1;
   const afterDeduction = totalIncome - deduction;
@@ -220,7 +235,8 @@ const ReceiptForm = ({ businessName }) => {
     const receiptToSend = {
       ...formData,
       openCloseValues,
-      gameRows: gameRows.map(({ multipliers, ...row }) => row),
+      gameRows,
+      columnMultipliers,
       date: dayjs(formData.date, "DD-MM-YYYY").toISOString(),
       totalIncome,
       deduction,
@@ -267,17 +283,6 @@ const ReceiptForm = ({ businessName }) => {
     if (!receipt) return;
     const customer = customerList.find((c) => c._id === receipt.customerId);
 
-    let rowsToSet = initialGameRows;
-    if (receipt.gameRows && receipt.gameRows.length > 0) {
-      rowsToSet = receipt.gameRows.map((row) => ({
-        ...row,
-        multipliers:
-          row.type === "आ."
-            ? initialGameRows[0].multipliers
-            : initialGameRows[1].multipliers,
-      }));
-    }
-
     setFormData({
       ...getInitialFormData(receipt.businessName),
       ...receipt,
@@ -288,7 +293,8 @@ const ReceiptForm = ({ businessName }) => {
       date: dayjs(receipt.date).format("DD-MM-YYYY"),
     });
 
-    setGameRows(rowsToSet);
+    setGameRows(receipt.gameRows || initialGameRows);
+    setColumnMultipliers(receipt.columnMultipliers || initialColumnMultipliers);
     setOpenCloseValues(
       receipt.openCloseValues || { open: "", close1: "", close2: "" }
     );
@@ -354,7 +360,6 @@ const ReceiptForm = ({ businessName }) => {
           className="printable-area p-4 border border-gray-400 rounded-lg"
         >
           <div className="text-center mb-4">
-            {/* Input for screen view (hidden on print) */}
             <input
               type="text"
               name="businessName"
@@ -363,7 +368,6 @@ const ReceiptForm = ({ businessName }) => {
               className="print-hidden business-name-input text-center font-bold text-2xl p-1 w-full focus:outline-none"
               placeholder="Business Name"
             />
-            {/* Static h2 for print view (hidden on screen) */}
             <h2 className="hidden print:block text-center font-bold text-2xl">
               {formData.businessName}
             </h2>
@@ -476,95 +480,81 @@ const ReceiptForm = ({ businessName }) => {
               </tr>
             </thead>
             <tbody>
-              {gameRows.map((row, index) => (
-                <tr key={row.id}>
-                  <td className="border p-2">{row.type}</td>
-                  <td className="border p-2">
-                    <input
-                      type="number"
-                      name="income"
-                      value={row.income}
-                      onChange={(e) => handleRowChange(index, e)}
-                      className="w-full text-right bg-transparent border-b focus:outline-none"
-                    />
-                  </td>
-                  <td className="border p-2">
-                    <div className="flex items-center justify-end">
-                      <input
-                        type="number"
-                        name="o"
-                        value={row.o}
-                        onChange={(e) => handleRowChange(index, e)}
-                        className="w-14 text-right bg-transparent border-b"
-                      />{" "}
-                      <span className="ml-1 text-xs">
-                        *{row.multipliers.o}={toNum(row.o) * row.multipliers.o}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="border p-2">
-                    <div className="flex items-center justify-end">
-                      <input
-                        type="number"
-                        name="jod"
-                        value={row.jod}
-                        onChange={(e) => handleRowChange(index, e)}
-                        className="w-14 text-right bg-transparent border-b"
-                      />{" "}
-                      <span className="ml-1 text-xs">
-                        *{row.multipliers.jod}=
-                        {toNum(row.jod) * row.multipliers.jod}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="border p-2">
-                    <div className="flex items-center justify-end">
-                      <input
-                        type="number"
-                        name="ko"
-                        value={row.ko}
-                        onChange={(e) => handleRowChange(index, e)}
-                        className="w-14 text-right bg-transparent border-b"
-                      />{" "}
-                      <span className="ml-1 text-xs">
-                        *{row.multipliers.ko}=
-                        {toNum(row.ko) * row.multipliers.ko}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="border p-2 text-center">
-                    <input
-                      type="number"
-                      name="pan"
-                      value={row.pan}
-                      onChange={(e) => handleRowChange(index, e)}
-                      className="w-16 text-center bg-transparent border-b"
-                    />
-                  </td>
-                  <td className="border p-2 text-center">
-                    <div className="flex items-center justify-center space-x-1">
-                      <select
-                        name="gun"
-                        value={row.gun}
-                        onChange={(e) => handleRowChange(index, e)}
-                        className="bg-transparent border rounded p-1 print-hidden"
-                      >
-                        <option value="SP">SP</option>
-                        <option value="DP">DP</option>
-                      </select>
-                      <span className="hidden print:inline">{row.gun}</span>
-                      {index > 1 && (
-                        <button
-                          onClick={() => removeRow(index)}
-                          className="print-hidden text-red-500 hover:text-red-700"
-                        >
-                          <FaMinus size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {/* MODIFICATION STARTS HERE */}
+              {gameRows.map((row, index) => {
+                if (row.type === "") {
+                  // Render new rows with two separate empty cells to prevent resizing
+                  return (
+                    <tr key={row.id}>
+                      <td className="border p-2"></td>
+                      <td className="border p-2"></td>
+                      <td className="border p-2">
+                        <input type="number" name="o" value={row.o} onChange={(e) => handleRowChange(index, e)} className="w-full text-right bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2">
+                        <input type="number" name="jod" value={row.jod} onChange={(e) => handleRowChange(index, e)} className="w-full text-right bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2">
+                        <input type="number" name="ko" value={row.ko} onChange={(e) => handleRowChange(index, e)} className="w-full text-right bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2 text-center">
+                        <input type="number" name="pan" value={row.pan} onChange={(e) => handleRowChange(index, e)} className="w-16 text-center bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2 text-center">
+                        <div className="flex items-center justify-center space-x-1">
+                          <select name="gun" value={row.gun} onChange={(e) => handleRowChange(index, e)} className="bg-transparent border rounded p-1 print-hidden">
+                            <option value="SP">SP</option>
+                            <option value="DP">DP</option>
+                          </select>
+                          <span className="hidden print:inline">{row.gun}</span>
+                          {index > 1 && (
+                            <button onClick={() => removeRow(index)} className="print-hidden text-red-500 hover:text-red-700">
+                                <FaMinus size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                } else {
+                  // Render original rows normally
+                  return (
+                    <tr key={row.id}>
+                      <td className="border p-2">{row.type}</td>
+                      <td className="border p-2">
+                        <input type="number" name="income" value={row.income} onChange={(e) => handleRowChange(index, e)} className="w-full text-right bg-transparent border-b focus:outline-none" />
+                      </td>
+                      <td className="border p-2">
+                        <input type="number" name="o" value={row.o} onChange={(e) => handleRowChange(index, e)} className="w-full text-right bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2">
+                        <input type="number" name="jod" value={row.jod} onChange={(e) => handleRowChange(index, e)} className="w-full text-right bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2">
+                        <input type="number" name="ko" value={row.ko} onChange={(e) => handleRowChange(index, e)} className="w-full text-right bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2 text-center">
+                        <input type="number" name="pan" value={row.pan} onChange={(e) => handleRowChange(index, e)} className="w-16 text-center bg-transparent border-b" />
+                      </td>
+                      <td className="border p-2 text-center">
+                        <div className="flex items-center justify-center space-x-1">
+                          <select name="gun" value={row.gun} onChange={(e) => handleRowChange(index, e)} className="bg-transparent border rounded p-1 print-hidden">
+                            <option value="SP">SP</option>
+                            <option value="DP">DP</option>
+                          </select>
+                          <span className="hidden print:inline">{row.gun}</span>
+                          {index > 1 && (
+                            <button onClick={() => removeRow(index)} className="print-hidden text-red-500 hover:text-red-700">
+                                <FaMinus size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+              })}
+              {/* MODIFICATION ENDS HERE */}
               <tr>
                 <td className="border p-2">टो.</td>
                 <td className="border p-2 text-right font-bold">
@@ -619,6 +609,60 @@ const ReceiptForm = ({ businessName }) => {
                   {finalTotal.toFixed(2)}
                 </td>
                 <td colSpan="5" className="border p-2"></td>
+              </tr>
+              <tr className="bg-gray-50">
+                <td colSpan="2" className="border p-2 font-bold text-right align-middle">
+                  Total *
+                </td>
+                <td className="border p-2">
+                  <div className="flex items-center justify-end space-x-2 text-sm font-medium">
+                    <span>{oTotal}</span>
+                    <span className="font-bold">*</span>
+                    <input
+                      type="number"
+                      name="o"
+                      value={columnMultipliers.o}
+                      onChange={handleMultiplierChange}
+                      className="w-12 text-center bg-transparent border-b-2 border-gray-400 font-bold focus:outline-none"
+                    />
+                    <span className="font-bold w-12 text-left">
+                      = {toNum(oTotal * columnMultipliers.o)}
+                    </span>
+                  </div>
+                </td>
+                <td className="border p-2">
+                  <div className="flex items-center justify-end space-x-2 text-sm font-medium">
+                    <span>{jodTotal}</span>
+                    <span className="font-bold">*</span>
+                    <input
+                      type="number"
+                      name="jod"
+                      value={columnMultipliers.jod}
+                      onChange={handleMultiplierChange}
+                      className="w-12 text-center bg-transparent border-b-2 border-gray-400 font-bold focus:outline-none"
+                    />
+                    <span className="font-bold w-12 text-left">
+                      = {toNum(jodTotal * columnMultipliers.jod)}
+                    </span>
+                  </div>
+                </td>
+                <td className="border p-2">
+                  <div className="flex items-center justify-end space-x-2 text-sm font-medium">
+                    <span>{koTotal}</span>
+                    <span className="font-bold">*</span>
+                    <input
+                      type="number"
+                      name="ko"
+                      value={columnMultipliers.ko}
+                      onChange={handleMultiplierChange}
+                      className="w-12 text-center bg-transparent border-b-2 border-gray-400 font-bold focus:outline-none"
+                    />
+                    <span className="font-bold w-12 text-left">
+                      = {toNum(koTotal * columnMultipliers.ko)}
+                    </span>
+                  </div>
+                </td>
+                <td colSpan="2" className="border p-1"></td>
               </tr>
             </tbody>
           </table>
