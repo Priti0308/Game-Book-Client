@@ -25,7 +25,6 @@ const COMPANY_NAMES = [
 ];
 
 // Helper function to safely evaluate arithmetic expressions
-// Helper function to safely evaluate arithmetic expressions
 const evaluateExpression = (expression) => {
   if (typeof expression !== "string" || !expression.trim()) {
     return 0;
@@ -34,7 +33,7 @@ const evaluateExpression = (expression) => {
     // 1. Sanitize to keep only valid characters
     let sanitized = expression.replace(/[^0-9+\-*/.]/g, "");
     
-    // 2. THIS IS THE NEW LINE: Remove any trailing operators to prevent eval syntax errors
+    // 2. Remove any trailing operators to prevent eval syntax errors
     sanitized = sanitized.replace(/[+\-*/.]+$/, ""); 
 
     if (!sanitized) return 0;
@@ -42,7 +41,6 @@ const evaluateExpression = (expression) => {
     const result = eval(sanitized);
     return isFinite(result) ? result : 0;
   } catch (error) {
-    // This catch is still useful for other syntax errors
     return 0;
   }
 };
@@ -70,7 +68,7 @@ const initialGameRows = [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "10", val2: "10" },
+    pan: { val1: "", val2: "" }, 
     gun: { val1: "", val2: "" },
     multiplier: 8,
   },
@@ -81,7 +79,7 @@ const initialGameRows = [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "10", val2: "12" },
+    pan: { val1: "", val2: "" }, 
     gun: { val1: "", val2: "" },
     multiplier: 9,
   },
@@ -182,15 +180,14 @@ const ReceiptForm = ({ businessName }) => {
   const handleRowChange = (index, e) => {
     const { name, value } = e.target;
     const updatedRows = [...gameRows];
-    const oldValue = updatedRows[index][name] || "";
 
     if (["o", "jod", "ko"].includes(name)) {
-      // Add '+' automatically if a number was typed and we're not deleting
-      if (value.length > oldValue.length && /\d$/.test(value)) {
-        updatedRows[index][name] = value + "+";
-      } else {
-        updatedRows[index][name] = value;
-      }
+      // MODIFIED LOGIC: Let user type numbers and spaces. Replace spaces with '+'.
+      // This correctly handles multi-digit numbers like '30' or '120'.
+      const formattedValue = value
+        .replace(/\s/g, "+") // Change any space to a +
+        .replace(/\+{2,}/g, "+"); // Prevent user from typing "++"
+      updatedRows[index][name] = formattedValue;
     } else if (name === "panVal1" || name === "panVal2") {
       const field = name === "panVal1" ? "val1" : "val2";
       updatedRows[index].pan = { ...updatedRows[index].pan, [field]: value };
@@ -273,7 +270,7 @@ const ReceiptForm = ({ businessName }) => {
       (sum, row) => sum + Number(row.income || 0),
       0
     );
-    const payment = oFinalTotal + jodFinalTotal + koFinalTotal;
+    const payment = oFinalTotal + jodFinalTotal + koFinalTotal+panFinalTotal +gunFinalTotal;
     const deduction = totalIncome * 0.1;
     const afterDeduction = totalIncome - deduction;
     const remainingBalance = afterDeduction - payment;
@@ -316,7 +313,8 @@ const ReceiptForm = ({ businessName }) => {
     }));
   }, [calculationResults.payment]);
 
-  const handleSave = async () => {
+  // Inside the handleSave function
+const handleSave = async () => {
     if (!formData.customerId) {
       toast.error("Please select a customer.");
       return;
@@ -331,17 +329,21 @@ const ReceiptForm = ({ businessName }) => {
     };
 
     try {
+      // Check if a receipt is being edited (by checking for an existing _id)
       if (formData._id) {
+        // This is the correct logic for UPDATING an existing receipt
         const res = await axios.put(
           `${API_BASE_URI}/api/receipts/${formData._id}`,
           receiptToSend,
           { headers: { Authorization: `Bearer ${token}` } }
         );
+        // This replaces the old receipt in the state with the newly updated one
         setReceipts(
           receipts.map((r) => (r._id === formData._id ? res.data.receipt : r))
         );
         toast.success("Receipt updated successfully!");
       } else {
+        // This is the correct logic for SAVING a new receipt
         const res = await axios.post(
           `${API_BASE_URI}/api/receipts`,
           receiptToSend,
@@ -356,7 +358,6 @@ const ReceiptForm = ({ businessName }) => {
       console.error("Save error:", error);
     }
   };
-
   const handleEdit = (id) => {
     const receipt = receipts.find((r) => r._id === id);
     if (!receipt) {
@@ -568,7 +569,6 @@ const ReceiptForm = ({ businessName }) => {
                   const renderCellWithCalculation = (colName) => {
                     const effectiveMultiplier =
                       colName === "jod" ? multiplier * 10 : multiplier;
-                    // MODIFIED: Calculate result to display it live
                     const cellTotal =
                       evaluateExpression(row[colName]) * effectiveMultiplier;
 
@@ -581,7 +581,6 @@ const ReceiptForm = ({ businessName }) => {
                           onChange={(e) => handleRowChange(index, e)}
                           className="w-full text-right bg-transparent border-b"
                         />
-                        {/* MODIFIED: Show live total next to multiplier */}
                         {hasMultiplier && (
                           <span className="text-gray-500 text-xs whitespace-nowrap flex items-center justify-end">
                             *{" "}
@@ -611,7 +610,6 @@ const ReceiptForm = ({ businessName }) => {
 
                   const panCell = (
                     <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                      {/* MODIFIED: Reduced input width to w-8 */}
                       <input type="number" name="panVal1" value={row.pan?.val1 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
                       <span className="text-gray-600">×</span>
                       <input type="number" name="panVal2" value={row.pan?.val2 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
@@ -626,7 +624,6 @@ const ReceiptForm = ({ businessName }) => {
 
                   const gunCell = (
                     <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                      {/* MODIFIED: Reduced input width to w-8 */}
                       <input type="number" name="gunVal1" value={row.gun?.val1 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
                       <span className="text-gray-600">×</span>
                       <input type="number" name="gunVal2" value={row.gun?.val2 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
