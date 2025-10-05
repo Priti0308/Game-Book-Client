@@ -30,12 +30,8 @@ const evaluateExpression = (expression) => {
     return 0;
   }
   try {
-    // 1. Sanitize to keep only valid characters
     let sanitized = expression.replace(/[^0-9+\-*/.]/g, "");
-    
-    // 2. Remove any trailing operators to prevent eval syntax errors
-    sanitized = sanitized.replace(/[+\-*/.]+$/, ""); 
-
+    sanitized = sanitized.replace(/[+\-*/.]+$/, "");
     if (!sanitized) return 0;
     // eslint-disable-next-line no-eval
     const result = eval(sanitized);
@@ -68,7 +64,7 @@ const initialGameRows = [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "" }, 
+    pan: { val1: "", val2: "" },
     gun: { val1: "", val2: "" },
     multiplier: 8,
   },
@@ -79,7 +75,7 @@ const initialGameRows = [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "" }, 
+    pan: { val1: "", val2: "" },
     gun: { val1: "", val2: "" },
     multiplier: 9,
   },
@@ -182,11 +178,9 @@ const ReceiptForm = ({ businessName }) => {
     const updatedRows = [...gameRows];
 
     if (["o", "jod", "ko"].includes(name)) {
-      // MODIFIED LOGIC: Let user type numbers and spaces. Replace spaces with '+'.
-      // This correctly handles multi-digit numbers like '30' or '120'.
       const formattedValue = value
-        .replace(/\s/g, "+") // Change any space to a +
-        .replace(/\+{2,}/g, "+"); // Prevent user from typing "++"
+        .replace(/\s/g, "+")
+        .replace(/\+{2,}/g, "+");
       updatedRows[index][name] = formattedValue;
     } else if (name === "panVal1" || name === "panVal2") {
       const field = name === "panVal1" ? "val1" : "val2";
@@ -220,6 +214,7 @@ const ReceiptForm = ({ businessName }) => {
         multiplier: 8,
       };
       setGameRows([...gameRows, newRow]);
+      toast.success("New empty row added successfully!");
     } else {
       toast.warn("You can add a maximum of 10 rows.");
     }
@@ -270,7 +265,12 @@ const ReceiptForm = ({ businessName }) => {
       (sum, row) => sum + Number(row.income || 0),
       0
     );
-    const payment = oFinalTotal + jodFinalTotal + koFinalTotal+panFinalTotal +gunFinalTotal;
+    const payment =
+      oFinalTotal +
+      jodFinalTotal +
+      koFinalTotal +
+      panFinalTotal +
+      gunFinalTotal;
     const deduction = totalIncome * 0.1;
     const afterDeduction = totalIncome - deduction;
     const remainingBalance = afterDeduction - payment;
@@ -279,9 +279,9 @@ const ReceiptForm = ({ businessName }) => {
     const jama = Number(formData.jama) || 0;
     const advanceAmount = Number(formData.advanceAmount) || 0;
     const cuttingAmount = Number(formData.cuttingAmount) || 0;
-    const finalTotal = totalDue - jama - advanceAmount - cuttingAmount;
 
-    const jamaTotal = afterDeduction;
+    const finalTotal = totalDue - advanceAmount - cuttingAmount;
+    const jamaTotal = afterDeduction - jama;
 
     return {
       totalIncome,
@@ -313,8 +313,7 @@ const ReceiptForm = ({ businessName }) => {
     }));
   }, [calculationResults.payment]);
 
-  // Inside the handleSave function
-const handleSave = async () => {
+  const handleSave = async () => {
     if (!formData.customerId) {
       toast.error("Please select a customer.");
       return;
@@ -329,21 +328,17 @@ const handleSave = async () => {
     };
 
     try {
-      // Check if a receipt is being edited (by checking for an existing _id)
       if (formData._id) {
-        // This is the correct logic for UPDATING an existing receipt
         const res = await axios.put(
           `${API_BASE_URI}/api/receipts/${formData._id}`,
           receiptToSend,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        // This replaces the old receipt in the state with the newly updated one
         setReceipts(
           receipts.map((r) => (r._id === formData._id ? res.data.receipt : r))
         );
         toast.success("Receipt updated successfully!");
       } else {
-        // This is the correct logic for SAVING a new receipt
         const res = await axios.post(
           `${API_BASE_URI}/api/receipts`,
           receiptToSend,
@@ -422,23 +417,133 @@ const handleSave = async () => {
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8 font-sans">
       <ToastContainer position="top-right" autoClose={3000} />
-      {/* MODIFIED: Added CSS to hide number input arrows */}
+
       <style>{`
         @media print { 
+          @page {
+            size: A4;
+            margin: 0.5in 0.3in 0.5in 0.3in;
+          }
           body * { visibility: hidden; } 
           .printable-area, .printable-area * { visibility: visible; } 
-          .printable-area { position: absolute; left: 0; top: 0; width: 100%; height: auto; border: none !important; box-shadow: none !important; margin: 0; padding: 1rem !important; } 
+          .printable-area { 
+            position: absolute; left: 0; top: 0; width: 100%; height: auto; 
+            border: none !important; box-shadow: none !important; margin: 0; 
+            padding: 0.5rem !important; font-size: 11px !important;
+            line-height: 1.2 !important;
+          } 
           .print-hidden { display: none !important; } 
-          .printable-area input, .printable-area select { border: none !important; background: transparent !important; padding: 0; color: black !important; -webkit-appearance: none; -moz-appearance: none; appearance: none; text-align: inherit; font-size: inherit; font-family: inherit; font-weight: inherit; }
+          .printable-area input, .printable-area select { 
+            border: none !important; background: transparent !important; 
+            padding: 0 !important; color: black !important; 
+            -webkit-appearance: none; -moz-appearance: none; appearance: none; 
+            text-align: inherit; font-size: inherit !important; 
+            font-family: inherit; font-weight: inherit;
+            min-width: 0 !important;
+          }
+          .printable-area table {
+            width: 100% !important; table-layout: fixed !important;
+            border-collapse: collapse !important; font-size: 10px !important;
+            margin: 0.2rem 0 !important;
+          }
+          
+          .printable-area th, .printable-area td {
+            padding: 6px 2px !important;
+            border: 1px solid #000 !important;
+            word-wrap: break-word !important;
+            word-break: break-all !important; 
+            font-size: 9px !important;
+            line-height: 1.2 !important;
+            vertical-align: middle !important;
+          }
+          
+          .printable-area th {
+            background-color: #f0f0f0 !important; font-weight: bold !important;
+            text-align: center !important;
+          }
+          .printable-area table col:nth-child(1) { width: 8% !important; }
+          .printable-area table col:nth-child(2) { width: 12% !important; }
+          .printable-area table col:nth-child(3) { width: 15% !important; }
+          .printable-area table col:nth-child(4) { width: 15% !important; }
+          .printable-area table col:nth-child(5) { width: 15% !important; }
+          .printable-area table col:nth-child(6) { width: 18% !important; }
+          .printable-area table col:nth-child(7) { width: 17% !important; }
+          
+          .printable-area input[type="text"], 
+          .printable-area input[type="number"] {
+            width: 100% !important; font-size: 8px !important;
+            text-align: right !important; border-bottom: none !important;
+            height: auto !important;
+          }
+          .printable-area .flex {
+            display: flex !important; align-items: center !important;
+            justify-content: center !important; flex-wrap: nowrap !important;
+            font-size: 8px !important;
+          }
+          .printable-area .flex input {
+            width: 15px !important; text-align: center !important;
+            margin: 0 1px !important;
+          }
+          .printable-area .flex span { font-size: 7px !important; margin: 0 1px !important; }
+          .printable-area h2 {
+            font-size: 16px !important; margin: 0.3rem 0 0.5rem 0 !important;
+            text-align: center !important; font-weight: bold !important;
+            text-transform: uppercase !important; letter-spacing: 1px !important;
+            border-bottom: 2px solid #000 !important; padding-bottom: 0.2rem !important;
+          }
+          .printable-area .header-section {
+            margin-bottom: 0.5rem !important; padding-bottom: 0.3rem !important;
+            border-bottom: 1px solid #ccc !important;
+          }
+          .printable-area .company-header {
+            text-align: center !important; font-size: 12px !important;
+            font-weight: bold !important; margin: 0.2rem 0 !important;
+          }
+          .printable-area .info-section {
+            display: flex !important; justify-content: space-between !important;
+            align-items: flex-start !important; margin: 0.3rem 0 0.5rem 0 !important;
+            font-size: 10px !important;
+          }
+          .printable-area .date-info { font-size: 10px !important; line-height: 1.3 !important; }
+          .printable-area .customer-info { font-size: 10px !important; text-align: right !important; }
+
+          /* MODIFIED: Removed border and background from the Open/Close box for print */
+          .printable-area .values-section-print {
+            display: block !important;
+            padding: 0 !important;
+            font-size: 9px !important;
+          }
+
+          .printable-area .values-row {
+            display: flex !important; justify-content: space-between !important;
+            margin: 0.1rem 0 !important;
+          }
+          .printable-area button { display: none !important; }
+
+          .printable-area .bottom-box-container {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: stretch !important;
+            width: 100% !important;
+            gap: 10px !important;
+          }
+          .printable-area .bottom-box {
+            width: 49% !important;
+            border: 1px solid #000 !important;
+            padding: 4px !important;
+          }
+          
+          #add-row-button {
+            display: none !important;
+            visibility: hidden !important;
+          }
         }
+        
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; 
-            margin: 0; 
+            -webkit-appearance: none; margin: 0; 
         }
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
+        input[type=number] { -moz-appearance: textfield; }
       `}</style>
 
       <div
@@ -449,91 +554,109 @@ const handleSave = async () => {
           ref={printRef}
           className="printable-area p-4 border border-gray-400 rounded-lg"
         >
-          <div className="text-center mb-2">
-            <h2 className="text-center font-bold text-2xl">
-              {formData.businessName}
-            </h2>
-          </div>
+          {/* Form content */}
+          <div className="header-section relative pb-4 mb-4">
+            <div className="text-center">
+              <h2 className="font-bold text-2xl">{formData.businessName}</h2>
+              <div className="company-header">
+                <span className="print-hidden">
+                  <select
+                    name="customerCompany"
+                    value={formData.customerCompany}
+                    onChange={handleChange}
+                    className="ml-2 bg-transparent border rounded p-1 text-sm"
+                  >
+                    <option value="">Choose Company...</option>
+                    {COMPANY_NAMES.map((company, index) => (
+                      <option key={index} value={company}>
+                        {company}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+                {/* MODIFIED: Added "Company Name :" text for print view */}
+                <span className="hidden print:inline font-bold">
+                  Company Name : {formData.customerCompany || "N/A"}
+                </span>
+              </div>
+            </div>
 
-          <div className="flex justify-center items-center mb-4 text-sm">
-            <strong>Company:</strong>
-            <select
-              name="customerCompany"
-              value={formData.customerCompany}
-              onChange={handleChange}
-              className="ml-2 bg-transparent border rounded p-1 text-xs print-hidden"
-            >
-              <option value="">Choose...</option>
-              {COMPANY_NAMES.map((company, index) => (
-                <option key={index} value={company}>
-                  {company}
-                </option>
-              ))}
-            </select>
-            <span className="hidden print:inline ml-2 font-bold">
-              {formData.customerCompany || "N/A"}
-            </span>
-          </div>
+            <div className="values-section absolute top-0 right-0 p-2 space-y-1 border rounded-md bg-gray-50 print-hidden">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm mr-2">Open:</span>
+                <input
+                  type="text"
+                  name="open"
+                  value={openCloseValues.open}
+                  onChange={handleOpenCloseChange}
+                  className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm mr-2">Close:</span>
+                <input
+                  type="text"
+                  name="close"
+                  value={openCloseValues.close}
+                  onChange={handleOpenCloseChange}
+                  className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm mr-2">Jod:</span>
+                <input
+                  type="text"
+                  name="jod"
+                  value={openCloseValues.jod}
+                  onChange={handleOpenCloseChange}
+                  className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
+                />
+              </div>
+            </div>
 
-          <div className="flex justify-between items-start mb-4">
-            <div className="text-sm">
-              <div className="mb-3">
+            <div className="info-section mt-4">
+              <div className="date-info">
                 <div>
                   वार:- <span className="font-semibold">{formData.day}</span>
                 </div>
                 <div>
                   दि:- <span className="font-semibold">{formData.date}</span>
                 </div>
+                <div className="mt-2">
+                  <span className="print-hidden">
+                    <strong className="mr-2">Customer:</strong>
+                    <select
+                      name="customerId"
+                      value={formData.customerId}
+                      onChange={handleCustomerChange}
+                      className="p-1 w-48 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Customer</option>
+                      {customerList.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                  <span className="hidden print:inline customer-info">
+                    <strong>Customer:</strong> {formData.customerName || "N/A"}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center">
-                <strong className="mr-2">Customer:</strong>
-                <select
-                  name="customerId"
-                  value={formData.customerId}
-                  onChange={handleCustomerChange}
-                  className="p-1 w-48 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Customer</option>
-                  {customerList.map((c) => (
-                    <option key={c._id} value={c._id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
-            <div className="flex flex-col items-end">
-              <div className="p-2 border border-gray-500 rounded-lg w-full max-w-[220px] space-y-2 text-sm">
-                <div className="flex items-center justify-between">
+              <div className="values-section-print hidden">
+                <div className="values-row">
                   <span className="font-bold">Open:</span>
-                  <input
-                    type="text"
-                    name="open"
-                    value={openCloseValues.open}
-                    onChange={handleOpenCloseChange}
-                    className="w-24 text-center border border-gray-300 rounded"
-                  />
+                  <span>{openCloseValues.open || "___"}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="values-row">
                   <span className="font-bold">Close:</span>
-                  <input
-                    type="text"
-                    name="close"
-                    value={openCloseValues.close}
-                    onChange={handleOpenCloseChange}
-                    className="w-24 text-center border border-gray-300 rounded"
-                  />
+                  <span>{openCloseValues.close || "___"}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="values-row">
                   <span className="font-bold">Jod:</span>
-                  <input
-                    type="text"
-                    name="jod"
-                    value={openCloseValues.jod}
-                    onChange={handleOpenCloseChange}
-                    className="w-24 text-center border border-gray-300 rounded"
-                  />
+                  <span>{openCloseValues.jod || "___"}</span>
                 </div>
               </div>
             </div>
@@ -543,12 +666,12 @@ const handleSave = async () => {
             <table className="w-full text-sm table-fixed border-collapse">
               <colgroup>
                 <col style={{ width: "8%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "16%" }} />
+                <col style={{ width: "12%" }} />
                 <col style={{ width: "15%" }} />
                 <col style={{ width: "15%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "17%" }} />
               </colgroup>
               <thead>
                 <tr className="bg-gray-100">
@@ -573,18 +696,22 @@ const handleSave = async () => {
                       evaluateExpression(row[colName]) * effectiveMultiplier;
 
                     return (
-                      <div className="flex flex-col items-end">
+                      <div className="flex flex-col items-end p-1">
                         <input
                           type="text"
                           name={colName}
                           value={row[colName]}
                           onChange={(e) => handleRowChange(index, e)}
-                          className="w-full text-right bg-transparent border-b"
+                          className="w-full text-right bg-white border border-gray-300 rounded-md p-1 text-sm mb-1 print-hidden"
                         />
+                        <div className="hidden print:block w-full print:text-center print:border-b print:border-gray-400 print:pb-1 print:mb-1">
+                           {row[colName]}
+                        </div>
+                        
                         {hasMultiplier && (
-                          <span className="text-gray-500 text-xs whitespace-nowrap flex items-center justify-end">
+                          <span className="text-gray-500 whitespace-nowrap flex items-center justify-end print:justify-center">
                             *{" "}
-                            <input
+                             <input
                               type="number"
                               value={effectiveMultiplier}
                               onChange={(e) =>
@@ -595,9 +722,12 @@ const handleSave = async () => {
                                     : e.target.value
                                 )
                               }
-                              className="w-8 text-center bg-transparent focus:outline-none"
+                              className="w-8 text-center bg-transparent focus:outline-none print-hidden"
                             />
-                            <span className="ml-1">= {cellTotal.toFixed(0)}</span>
+                            <span className="hidden print:inline">{effectiveMultiplier}</span>
+                            <span className="ml-1">
+                              = {cellTotal.toFixed(0)}
+                            </span>
                           </span>
                         )}
                       </div>
@@ -610,9 +740,21 @@ const handleSave = async () => {
 
                   const panCell = (
                     <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                      <input type="number" name="panVal1" value={row.pan?.val1 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
+                      <input
+                        type="number"
+                        name="panVal1"
+                        value={row.pan?.val1 || ""}
+                        onChange={(e) => handleRowChange(index, e)}
+                        className="w-10 text-center border border-gray-300 rounded p-0.5"
+                      />
                       <span className="text-gray-600">×</span>
-                      <input type="number" name="panVal2" value={row.pan?.val2 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
+                      <input
+                        type="number"
+                        name="panVal2"
+                        value={row.pan?.val2 || ""}
+                        onChange={(e) => handleRowChange(index, e)}
+                        className="w-10 text-center border border-gray-300 rounded p-0.5"
+                      />
                       <span className="text-gray-600">=</span>
                       <span className="text-xs">{panResult.toFixed(0)}</span>
                     </div>
@@ -624,9 +766,21 @@ const handleSave = async () => {
 
                   const gunCell = (
                     <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                      <input type="number" name="gunVal1" value={row.gun?.val1 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
+                      <input
+                        type="number"
+                        name="gunVal1"
+                        value={row.gun?.val1 || ""}
+                        onChange={(e) => handleRowChange(index, e)}
+                        className="w-10 text-center border border-gray-300 rounded p-0.5"
+                      />
                       <span className="text-gray-600">×</span>
-                      <input type="number" name="gunVal2" value={row.gun?.val2 || ""} onChange={(e) => handleRowChange(index, e)} className="w-8 text-center bg-transparent border-b"/>
+                      <input
+                        type="number"
+                        name="gunVal2"
+                        value={row.gun?.val2 || ""}
+                        onChange={(e) => handleRowChange(index, e)}
+                        className="w-10 text-center border border-gray-300 rounded p-0.5"
+                      />
                       <span className="text-gray-600">=</span>
                       <span className="text-xs">{gunResult.toFixed(0)}</span>
                     </div>
@@ -635,19 +789,21 @@ const handleSave = async () => {
                   if (row.type === "") {
                     return (
                       <tr key={row.id}>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        <td className="border p-1">
+                        <td
+                          colSpan="2"
+                          className="border-l border-r border-t border-b p-2"
+                        ></td>
+                        <td className="border border-l p-1">
                           {renderCellWithCalculation("o")}
                         </td>
-                        <td className="border p-1">
+                        <td className="border border-l p-1">
                           {renderCellWithCalculation("jod")}
                         </td>
-                        <td className="border p-1">
+                        <td className="border border-l p-1">
                           {renderCellWithCalculation("ko")}
                         </td>
-                        <td className="border p-1">{panCell}</td>
-                        <td className="border p-1">
+                        <td className="border border-l p-1">{panCell}</td>
+                        <td className="border border-l p-1">
                           <div className="flex items-center justify-center">
                             {gunCell}
                             <button
@@ -670,7 +826,7 @@ const handleSave = async () => {
                             name="income"
                             value={row.income}
                             onChange={(e) => handleRowChange(index, e)}
-                            className="w-full text-right bg-transparent border-b focus:outline-none"
+                            className="w-full text-right border border-gray-300 rounded p-1"
                           />
                         </td>
                         <td className="border p-1">
@@ -688,20 +844,7 @@ const handleSave = async () => {
                     );
                   }
                 })}
-              </tbody>
-            </table>
-
-            <table className="w-full text-sm table-fixed border-collapse border-t-0">
-              <colgroup>
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "15%" }} />
-              </colgroup>
-              <tbody>
+                {/* Calculation rows */}
                 <tr>
                   <td className="border p-2">टो.</td>
                   <td className="border p-2 text-right">
@@ -784,17 +927,18 @@ const handleSave = async () => {
             </table>
           </div>
 
-          <div className="print-hidden mt-2 flex justify-end">
+          <div className="mt-2 flex justify-end">
             <button
+              id="add-row-button"
               onClick={addRow}
-              className="flex items-center px-3 py-1 bg-blue-500 text-white rounded-md shadow-sm hover:bg-blue-600 text-sm"
+              className="flex items-center px-3 py-1 bg-blue-500 text-white rounded-md shadow-sm hover:bg-blue-600 text-sm print-hidden"
             >
               <FaPlus size={12} className="mr-1" /> Add Row
             </button>
           </div>
 
-          <div className="flex justify-between mt-4">
-            <div className="w-1/2 mr-2 p-2 border rounded-md space-y-2 text-sm">
+          <div className="flex justify-between mt-4 bottom-box-container">
+            <div className="w-1/2 mr-2 p-2 border rounded-md space-y-2 text-sm bottom-box">
               <div className="flex justify-between items-center">
                 <span>जमा:-</span>
                 <input
@@ -812,7 +956,7 @@ const handleSave = async () => {
                 </span>
               </div>
             </div>
-            <div className="w-1/2 ml-2 p-2 border rounded-md space-y-2 text-sm">
+            <div className="w-1/2 ml-2 p-2 border rounded-md space-y-2 text-sm bottom-box">
               <div className="flex justify-between items-center">
                 <span>आड:-</span>
                 <input
@@ -830,7 +974,7 @@ const handleSave = async () => {
                   name="cuttingAmount"
                   value={formData.cuttingAmount}
                   onChange={handleChange}
-                  className="w-2/3 massaging text-right bg-transparent border-b"
+                  className="w-2/3 text-right bg-transparent border-b"
                 />
               </div>
               <div className="flex justify-between">
