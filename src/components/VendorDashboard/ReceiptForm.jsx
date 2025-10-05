@@ -561,7 +561,7 @@ const ReceiptForm = ({ businessName }) => {
               <div className="company-header">
                 <span className="print-hidden">
                   <select
-                    name="customerCompany"
+                    name="customerCompany"it
                     value={formData.customerCompany}
                     onChange={handleChange}
                     className="ml-2 bg-transparent border rounded p-1 text-sm"
@@ -624,7 +624,7 @@ const ReceiptForm = ({ businessName }) => {
                 </div>
                 <div className="mt-2">
                   <span className="print-hidden">
-                    <strong className="mr-2">Customer:</strong>
+                    <strong className="mr-2">Customer Name:</strong>
                     <select
                       name="customerId"
                       value={formData.customerId}
@@ -640,7 +640,7 @@ const ReceiptForm = ({ businessName }) => {
                     </select>
                   </span>
                   <span className="hidden print:inline customer-info">
-                    <strong>Customer:</strong> {formData.customerName || "N/A"}
+                    <strong>Customer Name:</strong> {formData.customerName || "N/A"}
                   </span>
                 </div>
               </div>
