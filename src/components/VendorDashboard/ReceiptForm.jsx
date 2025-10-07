@@ -280,8 +280,8 @@ const ReceiptForm = ({ businessName }) => {
     const advanceAmount = Number(formData.advanceAmount) || 0;
     const cuttingAmount = Number(formData.cuttingAmount) || 0;
 
-    const finalTotal = totalDue - advanceAmount - cuttingAmount;
-    const jamaTotal = afterDeduction - jama;
+    const finalTotal = advanceAmount - cuttingAmount;
+    const jamaTotal = totalDue - jama;
 
     return {
       totalIncome,
@@ -419,25 +419,25 @@ const ReceiptForm = ({ businessName }) => {
       <ToastContainer position="top-right" autoClose={3000} />
 
       <style>{`
-        @media print { 
+        @media print {
           @page {
             size: A4;
             margin: 0.5in 0.3in 0.5in 0.3in;
           }
-          body * { visibility: hidden; } 
-          .printable-area, .printable-area * { visibility: visible; } 
-          .printable-area { 
-            position: absolute; left: 0; top: 0; width: 100%; height: auto; 
-            border: none !important; box-shadow: none !important; margin: 0; 
+          body * { visibility: hidden; }
+          .printable-area, .printable-area * { visibility: visible; }
+          .printable-area {
+            position: absolute; left: 0; top: 0; width: 100%; height: auto;
+            border: none !important; box-shadow: none !important; margin: 0;
             padding: 0.5rem !important; font-size: 11px !important;
             line-height: 1.2 !important;
-          } 
-          .print-hidden { display: none !important; } 
-          .printable-area input, .printable-area select { 
-            border: none !important; background: transparent !important; 
-            padding: 0 !important; color: black !important; 
-            -webkit-appearance: none; -moz-appearance: none; appearance: none; 
-            text-align: inherit; font-size: inherit !important; 
+          }
+          .print-hidden { display: none !important; }
+          .printable-area input, .printable-area select {
+            border: none !important; background: transparent !important;
+            padding: 0 !important; color: black !important;
+            -webkit-appearance: none; -moz-appearance: none; appearance: none;
+            text-align: inherit; font-size: inherit !important;
             font-family: inherit; font-weight: inherit;
             min-width: 0 !important;
           }
@@ -446,17 +446,17 @@ const ReceiptForm = ({ businessName }) => {
             border-collapse: collapse !important; font-size: 10px !important;
             margin: 0.2rem 0 !important;
           }
-          
+
           .printable-area th, .printable-area td {
             padding: 6px 2px !important;
             border: 1px solid #000 !important;
             word-wrap: break-word !important;
-            word-break: break-all !important; 
+            word-break: break-all !important;
             font-size: 9px !important;
             line-height: 1.2 !important;
             vertical-align: middle !important;
           }
-          
+
           .printable-area th {
             background-color: #f0f0f0 !important; font-weight: bold !important;
             text-align: center !important;
@@ -468,8 +468,8 @@ const ReceiptForm = ({ businessName }) => {
           .printable-area table col:nth-child(5) { width: 15% !important; }
           .printable-area table col:nth-child(6) { width: 18% !important; }
           .printable-area table col:nth-child(7) { width: 17% !important; }
-          
-          .printable-area input[type="text"], 
+
+          .printable-area input[type="text"],
           .printable-area input[type="number"] {
             width: 100% !important; font-size: 8px !important;
             text-align: right !important; border-bottom: none !important;
@@ -507,7 +507,6 @@ const ReceiptForm = ({ businessName }) => {
           .printable-area .date-info { font-size: 10px !important; line-height: 1.3 !important; }
           .printable-area .customer-info { font-size: 10px !important; text-align: right !important; }
 
-          /* MODIFIED: Removed border and background from the Open/Close box for print */
           .printable-area .values-section-print {
             display: block !important;
             padding: 0 !important;
@@ -532,16 +531,16 @@ const ReceiptForm = ({ businessName }) => {
             border: 1px solid #000 !important;
             padding: 4px !important;
           }
-          
+
           #add-row-button {
             display: none !important;
             visibility: hidden !important;
           }
         }
-        
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; margin: 0; 
+
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none; margin: 0;
         }
         input[type=number] { -moz-appearance: textfield; }
       `}</style>
@@ -561,7 +560,7 @@ const ReceiptForm = ({ businessName }) => {
               <div className="company-header">
                 <span className="print-hidden">
                   <select
-                    name="customerCompany"it
+                    name="customerCompany"
                     value={formData.customerCompany}
                     onChange={handleChange}
                     className="ml-2 bg-transparent border rounded p-1 text-sm"
@@ -574,7 +573,6 @@ const ReceiptForm = ({ businessName }) => {
                     ))}
                   </select>
                 </span>
-                {/* MODIFIED: Added "Company Name :" text for print view */}
                 <span className="hidden print:inline font-bold">
                   Company Name : {formData.customerCompany || "N/A"}
                 </span>
@@ -707,23 +705,23 @@ const ReceiptForm = ({ businessName }) => {
                         <div className="hidden print:block w-full print:text-center print:border-b print:border-gray-400 print:pb-1 print:mb-1">
                            {row[colName]}
                         </div>
-                        
+
                         {hasMultiplier && (
                           <span className="text-gray-500 whitespace-nowrap flex items-center justify-end print:justify-center">
                             *{" "}
-                             <input
-                              type="number"
-                              value={effectiveMultiplier}
-                              onChange={(e) =>
-                                handleMultiplierChange(
-                                  index,
-                                  colName === "jod"
-                                    ? Number(e.target.value) / 10
-                                    : e.target.value
-                                )
-                              }
-                              className="w-8 text-center bg-transparent focus:outline-none print-hidden"
-                            />
+                              <input
+                                type="number"
+                                value={effectiveMultiplier}
+                                onChange={(e) =>
+                                  handleMultiplierChange(
+                                    index,
+                                    colName === "jod"
+                                      ? Number(e.target.value) / 10
+                                      : e.target.value
+                                  )
+                                }
+                                className="w-8 text-center bg-transparent focus:outline-none print-hidden"
+                              />
                             <span className="hidden print:inline">{effectiveMultiplier}</span>
                             <span className="ml-1">
                               = {cellTotal.toFixed(0)}
