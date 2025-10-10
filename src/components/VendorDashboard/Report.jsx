@@ -32,7 +32,6 @@ const SkeletonRow = () => (
   <tr className="animate-pulse">
     <td className="p-3"><div className="h-4 bg-gray-200 rounded"></div></td>
     <td className="p-3"><div className="h-4 bg-gray-200 rounded"></div></td>
-    <td className="p-3"><div className="h-4 bg-gray-200 rounded"></div></td>
   </tr>
 );
 
@@ -63,7 +62,6 @@ const CustomerTable = ({ customers, onSelectCustomer, loading, pageStartIndex })
             <tr>
               <th className="p-3 text-left text-sm font-semibold text-gray-600 tracking-wider">Sr.No.</th>
               <th className="p-3 text-left text-sm font-semibold text-gray-600 tracking-wider">Name</th>
-              <th className="p-3 text-left text-sm font-semibold text-gray-600 tracking-wider">Contact</th>
             </tr>
           </thead>
           <tbody>
@@ -85,7 +83,6 @@ const CustomerTable = ({ customers, onSelectCustomer, loading, pageStartIndex })
           <tr>
             <th className="p-3 text-left text-sm font-semibold text-gray-600 tracking-wider">Sr.No.</th>
             <th className="p-3 text-left text-sm font-semibold text-gray-600 tracking-wider">Name</th>
-            <th className="p-3 text-left text-sm font-semibold text-gray-600 tracking-wider">Contact</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -97,7 +94,6 @@ const CustomerTable = ({ customers, onSelectCustomer, loading, pageStartIndex })
             >
               <td className="p-3 whitespace-nowrap text-sm text-gray-700">{pageStartIndex + index + 1}</td>
               <td className="p-3 whitespace-nowrap text-sm font-medium text-gray-900">{c.name}</td>
-              <td className="p-3 whitespace-nowrap text-sm text-gray-700">{c.contact || "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -223,8 +219,6 @@ export default function ReportPage() {
       return;
     }
     try {
-      // This endpoint fetches all customers. Ensure it exists in your backend.
-      // If your report customers are at /api/reports/customers, change it here.
       const res = await axios.get(`${API_BASE_URI}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -260,7 +254,6 @@ export default function ReportPage() {
     return customers.filter(
       (c) =>
         (c.name && c.name.toLowerCase().includes(debouncedSearch.toLowerCase())) ||
-        (c.contact && c.contact.toString().includes(debouncedSearch)) ||
         (c.srNo && c.srNo.toString() === debouncedSearch.trim())
     );
   }, [debouncedSearch, customers]);
@@ -302,7 +295,7 @@ export default function ReportPage() {
               <FaSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name, contact, or Sr.No."
+                placeholder="Search by name or Sr.No."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="border border-gray-300 rounded-lg py-2 pl-10 pr-4 w-full focus:outline-none focus:ring-2 focus:ring-purple-500 transition-shadow"
