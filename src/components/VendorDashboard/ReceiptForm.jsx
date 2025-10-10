@@ -113,8 +113,9 @@ const ReceiptForm = ({ businessName }) => {
       const response = await axios.get(`${API_BASE_URI}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const customers = (response.data.customers || []).sort((a, b) =>
-        a.name.localeCompare(b.name)
+      // Sort customers by their serial number (srNo) to ensure the correct order
+      const customers = (response.data.customers || []).sort(
+        (a, b) => a.srNo - b.srNo
       );
       setCustomerList(customers);
     } catch (error) {
@@ -155,7 +156,8 @@ const ReceiptForm = ({ businessName }) => {
       serialAsNumber > 0 &&
       serialAsNumber <= customerList.length
     ) {
-      const customer = customerList[serialAsNumber - 1];
+      // Find the customer whose srNo matches the selected serial number
+      const customer = customerList.find(c => c.srNo === serialAsNumber);
       if (customer) {
         let lastPendingAmount = "";
         const customerReceipts = receipts.filter(
@@ -381,11 +383,9 @@ const ReceiptForm = ({ businessName }) => {
       return;
     }
     const customer = customerList.find((c) => c._id === receipt.customerId);
-
-    const customerIndex = customerList.findIndex(
-      (c) => c._id === receipt.customerId
-    );
-    setSerialNumberInput(customerIndex !== -1 ? (customerIndex + 1).toString() : "");
+    
+    // Set the serial number input based on the customer's srNo
+    setSerialNumberInput(customer ? customer.srNo.toString() : "");
 
     const sanitizedGameRows = (receipt.gameRows || initialGameRows).map(
       (row) => ({
@@ -657,9 +657,9 @@ const ReceiptForm = ({ businessName }) => {
                            className="p-1 w-24 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="">Select No.</option>
-                            {customerList.map((customer, index) => (
-                                <option key={customer._id} value={index + 1}>
-                                    {index + 1}
+                            {customerList.map((customer) => (
+                                <option key={customer._id} value={customer.srNo}>
+                                    {customer.srNo}
                                 </option>
                             ))}
                         </select>
