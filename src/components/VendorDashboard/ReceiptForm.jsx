@@ -54,6 +54,7 @@ const getInitialFormData = (businessName) => ({
   advanceAmount: "",
   cuttingAmount: "",
   jama: "",
+  chuk: "",
 });
 
 const initialGameRows = [
@@ -94,6 +95,7 @@ const ReceiptForm = ({ businessName }) => {
   const [customerList, setCustomerList] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [serialNumberInput, setSerialNumberInput] = useState("");
   const printRef = useRef();
   const token = localStorage.getItem("token");
   const formRef = useRef(null);
@@ -102,6 +104,7 @@ const ReceiptForm = ({ businessName }) => {
     setFormData(getInitialFormData(formData.businessName));
     setGameRows(initialGameRows);
     setOpenCloseValues({ open: "", close: "", jod: "" });
+    setSerialNumberInput("");
   }, [formData.businessName]);
 
   const fetchCustomers = useCallback(async () => {
@@ -141,31 +144,45 @@ const ReceiptForm = ({ businessName }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCustomerChange = (e) => {
-    const selectedCustomerId = e.target.value;
-    const selectedCustomer = customerList.find(
-      (c) => c._id === selectedCustomerId
-    );
+  const handleSerialNumberChange = (e) => {
+    const serial = e.target.value;
+    setSerialNumberInput(serial);
 
-    let lastPendingAmount = "";
-    if (selectedCustomerId) {
-      const customerReceipts = receipts.filter(
-        (r) => r.customerId === selectedCustomerId
-      );
-      if (customerReceipts.length > 0) {
-        customerReceipts.sort((a, b) => new Date(b.date) - new Date(a.date));
-        if (customerReceipts[0].finalTotal) {
-          lastPendingAmount = customerReceipts[0].finalTotal.toString();
+    const serialAsNumber = parseInt(serial, 10);
+
+    if (
+      !isNaN(serialAsNumber) &&
+      serialAsNumber > 0 &&
+      serialAsNumber <= customerList.length
+    ) {
+      const customer = customerList[serialAsNumber - 1];
+      if (customer) {
+        let lastPendingAmount = "";
+        const customerReceipts = receipts.filter(
+          (r) => r.customerId === customer._id
+        );
+        if (customerReceipts.length > 0) {
+          customerReceipts.sort((a, b) => new Date(b.date) - new Date(a.date));
+          if (customerReceipts[0].finalTotalAfterChuk) {
+            lastPendingAmount =
+              customerReceipts[0].finalTotalAfterChuk.toString();
+          }
         }
+        setFormData((prev) => ({
+          ...prev,
+          customerId: customer._id,
+          customerName: customer.name,
+          pendingAmount: lastPendingAmount,
+        }));
       }
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        customerId: "",
+        customerName: "",
+        pendingAmount: "",
+      }));
     }
-
-    setFormData((prev) => ({
-      ...prev,
-      customerId: selectedCustomer?._id || "",
-      customerName: selectedCustomer?.name || "",
-      pendingAmount: lastPendingAmount,
-    }));
   };
 
   const handleOpenCloseChange = (e) => {
@@ -277,11 +294,13 @@ const ReceiptForm = ({ businessName }) => {
     const pendingAmount = Number(formData.pendingAmount) || 0;
     const totalDue = remainingBalance + pendingAmount;
     const jama = Number(formData.jama) || 0;
+    const chuk = Number(formData.chuk) || 0;
     const advanceAmount = Number(formData.advanceAmount) || 0;
     const cuttingAmount = Number(formData.cuttingAmount) || 0;
 
-    const finalTotal = advanceAmount - cuttingAmount;
     const jamaTotal = totalDue - jama;
+    const finalTotalAfterChuk = jamaTotal - chuk;
+    const finalTotal = advanceAmount - cuttingAmount;
 
     return {
       totalIncome,
@@ -292,6 +311,7 @@ const ReceiptForm = ({ businessName }) => {
       totalDue,
       finalTotal,
       jamaTotal,
+      finalTotalAfterChuk,
       oFinalTotal,
       jodFinalTotal,
       koFinalTotal,
@@ -304,6 +324,7 @@ const ReceiptForm = ({ businessName }) => {
     formData.advanceAmount,
     formData.cuttingAmount,
     formData.jama,
+    formData.chuk,
   ]);
 
   useEffect(() => {
@@ -360,6 +381,11 @@ const ReceiptForm = ({ businessName }) => {
       return;
     }
     const customer = customerList.find((c) => c._id === receipt.customerId);
+
+    const customerIndex = customerList.findIndex(
+      (c) => c._id === receipt.customerId
+    );
+    setSerialNumberInput(customerIndex !== -1 ? (customerIndex + 1).toString() : "");
 
     const sanitizedGameRows = (receipt.gameRows || initialGameRows).map(
       (row) => ({
@@ -621,22 +647,32 @@ const ReceiptForm = ({ businessName }) => {
                   दि:- <span className="font-semibold">{formData.date}</span>
                 </div>
                 <div className="mt-2">
-                  <span className="print-hidden">
-                    <strong className="mr-2">Customer Name:</strong>
-                    <select
-                      name="customerId"
-                      value={formData.customerId}
-                      onChange={handleCustomerChange}
-                      className="p-1 w-48 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Customer</option>
-                      {customerList.map((c) => (
-                        <option key={c._id} value={c._id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </span>
+                  <div className="print-hidden">
+                    <div className="flex flex-col items-start">
+                      <div className="flex items-center">
+                        <strong className="mr-2">S.No:</strong>
+                        <select
+                           value={serialNumberInput}
+                           onChange={handleSerialNumberChange}
+                           className="p-1 w-24 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">Select No.</option>
+                            {customerList.map((customer, index) => (
+                                <option key={customer._id} value={index + 1}>
+                                    {index + 1}
+                                </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div className="mt-2 pl-1">
+                        <span className="font-bold text-black-700">
+                          {formData.customerName 
+                            ? `Customer Name: ${formData.customerName}` 
+                            : "No customer selected"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                   <span className="hidden print:inline customer-info">
                     <strong>Customer Name:</strong> {formData.customerName || "N/A"}
                   </span>
@@ -885,8 +921,8 @@ const ReceiptForm = ({ businessName }) => {
                       type="number"
                       name="pendingAmount"
                       value={formData.pendingAmount}
-                      readOnly
-                      className="w-full text-right bg-gray-100 border-b"
+                      onChange={handleChange}
+                      className="w-full text-right bg-white border-b p-1"
                     />
                   </td>
                   <td colSpan="5" className="border p-2"></td>
@@ -951,6 +987,22 @@ const ReceiptForm = ({ businessName }) => {
                 <span>टो:-</span>
                 <span className="font-bold">
                   {calculationResults.jamaTotal.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>चूक:-</span>
+                <input
+                  type="number"
+                  name="chuk"
+                  value={formData.chuk}
+                  onChange={handleChange}
+                  className="w-2/3 text-right bg-transparent border-b"
+                />
+              </div>
+              <div className="flex justify-between">
+                <span>अंतिम टोटल:-</span>
+                <span className="font-bold">
+                  {calculationResults.finalTotalAfterChuk.toFixed(2)}
                 </span>
               </div>
             </div>
@@ -1046,7 +1098,7 @@ const ReceiptForm = ({ businessName }) => {
                       {dayjs(r.date).format("DD-MM-YYYY")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {r.finalTotal && Number(r.finalTotal).toFixed(2)}
+                      {r.finalTotalAfterChuk && Number(r.finalTotalAfterChuk).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center space-x-3">
                       <button

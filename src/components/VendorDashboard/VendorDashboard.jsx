@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaTachometerAlt,
-  FaQuestionCircle,
   FaUserCircle,
   FaSignOutAlt,
   FaFileInvoiceDollar,
@@ -16,8 +15,8 @@ import {
   FaEdit,
   FaCoins,
   FaSpinner,
-  FaReceipt, // Icon for receipts
-  FaUserPlus, // Icon for new customers
+  FaReceipt,
+  FaUserPlus,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import CustomerTab from "./CustomerTab";
@@ -36,10 +35,7 @@ const VendorDashboard = () => {
   const [currentSection, setCurrentSection] = useState("dashboard");
   const [vendor, setVendor] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // --- NEW STATE FOR DYNAMIC ACTIVITIES ---
   const [recentActivities, setRecentActivities] = useState([]);
-
   const [formData, setFormData] = useState({
     businessName: "",
     name: "",
@@ -50,6 +46,7 @@ const VendorDashboard = () => {
 
   const toggleSidebar = () => setCollapsed(!collapsed);
 
+  // --- Menu updated to remove 'Help' ---
   const menu = [
     { key: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
     { key: "profile", label: "Profile", icon: <FaUserCircle /> },
@@ -57,14 +54,11 @@ const VendorDashboard = () => {
     { key: "viewReceipts", label: "View Receipts", icon: <FaClipboardList /> },
     { key: "customers", label: "Customers", icon: <FaUser /> },
     { key: "reports", label: "Reports", icon: <FaCoins /> },
-    { key: "help", label: "Help", icon: <FaQuestionCircle /> },
     { key: "logout", label: "Logout", icon: <FaSignOutAlt /> },
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    localStorage.removeItem("vendorProfile");
+    localStorage.clear(); // Clears all items for a cleaner logout
     window.location.replace("/");
   };
 
@@ -90,40 +84,30 @@ const VendorDashboard = () => {
         toast.error(error.message);
       }
     };
-    
-    // --- NEW FUNCTION TO FETCH RECENT ACTIVITIES ---
-    const fetchRecentActivities = async () => {
-        // NOTE: This assumes you have a backend endpoint at /api/activities/recent
-        // For now, we are using mock data so you can see the result.
-        const mockActivities = [
-            { id: 1, type: "NEW_RECEIPT", description: "Receipt #1024 created for 'Smart Designs'", timestamp: new Date() },
-            { id: 2, type: "NEW_CUSTOMER", description: "'Global Tech' was added as a new customer", timestamp: new Date(Date.now() - 3600 * 1000 * 2) }, // 2 hours ago
-            { id: 3, type: "NEW_RECEIPT", description: "Receipt #1023 created for 'Local Cafe'", timestamp: new Date(Date.now() - 3600 * 1000 * 5) }, // 5 hours ago
-        ];
-        setRecentActivities(mockActivities);
 
-        /* // --- REAL API CALL (use this when your backend is ready) ---
-        try {
-            const response = await fetch(`${API_BASE_URI}/api/activities/recent`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!response.ok) throw new Error("Failed to fetch activities.");
-            const data = await response.json();
-            setRecentActivities(data.activities);
-        } catch (error) {
-            console.error(error);
-            toast.error("Could not load recent activities.");
-        }
-        */
+    // --- Switched to REAL API CALL for activities ---
+    const fetchRecentActivities = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URI}/api/activities/recent`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error("Failed to fetch activities.");
+        const data = await response.json();
+        // Use createdAt from the backend instead of a new Date()
+        setRecentActivities(data.activities); 
+      } catch (error) {
+        console.error(error);
+        toast.error("Could not load recent activities.");
+      }
     };
 
     const loadDashboardData = async () => {
-        setLoading(true);
-        await Promise.all([
-            fetchVendorProfile(),
-            fetchRecentActivities()
-        ]);
-        setLoading(false);
+      setLoading(true);
+      await Promise.all([
+        fetchVendorProfile(),
+        fetchRecentActivities()
+      ]);
+      setLoading(false);
     };
 
     loadDashboardData();
@@ -172,15 +156,13 @@ const VendorDashboard = () => {
     }
   };
 
-  // Helper to get the right icon for an activity
   const getActivityIcon = (type) => {
     switch (type) {
-        case "NEW_RECEIPT": return <FaReceipt className="text-blue-500" />;
-        case "NEW_CUSTOMER": return <FaUserPlus className="text-green-500" />;
-        default: return <FaClipboardList className="text-gray-500" />;
+      case "NEW_RECEIPT": return <FaReceipt className="text-blue-500" />;
+      case "NEW_CUSTOMER": return <FaUserPlus className="text-green-500" />;
+      default: return <FaClipboardList className="text-gray-500" />;
     }
   };
-
 
   if (loading) {
     return (
@@ -233,11 +215,10 @@ const VendorDashboard = () => {
         </nav>
       </div>
 
-      {/* Main */}
+      {/* Main Content */}
       <div className="flex-1 p-6 overflow-y-auto">
         {currentSection === "dashboard" && (
           <div className="space-y-8">
-            {/* Vendor Info */}
             <div className="bg-white rounded-2xl shadow-lg p-8 max-w-2xl mx-auto space-y-4">
               <h2 className="text-3xl font-bold text-purple-600 mb-4">
                 Profile
@@ -262,7 +243,6 @@ const VendorDashboard = () => {
               </div>
             </div>
             
-            {/* --- UPDATED: Quick Actions with Gradients --- */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 justify-items-center">
               <div
                 onClick={() => setCurrentSection("createReceipt")}
@@ -284,7 +264,6 @@ const VendorDashboard = () => {
               </div>
             </div>
 
-            {/* --- UPDATED: Recent Activities --- */}
             <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
               <h2 className="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">
                 Recent Activities
@@ -292,14 +271,15 @@ const VendorDashboard = () => {
               <div className="space-y-4 text-gray-600">
                 {recentActivities.length > 0 ? (
                   recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-center gap-4">
+                    <div key={activity._id} className="flex items-center gap-4">
                       <div className="text-2xl">
                         {getActivityIcon(activity.type)}
                       </div>
                       <div>
                         <p className="font-medium text-gray-800">{activity.description}</p>
                         <p className="text-sm text-gray-400">
-                           {new Date(activity.timestamp).toLocaleString()}
+                           {/* Use createdAt from the backend */}
+                           {new Date(activity.createdAt).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -313,7 +293,7 @@ const VendorDashboard = () => {
         )}
 
         {currentSection === "profile" && (
-          <div className="bg-white rounded-2xl shadow-xl p-10 max-w-5xl mx-auto space-y-8">
+            <div className="bg-white rounded-2xl shadow-xl p-10 max-w-5xl mx-auto space-y-8">
             <h2 className="text-4xl font-bold text-gray-900">Business Profile</h2>
             {editMode ? (
               <div className="space-y-6 text-gray-800 text-xl">
@@ -382,23 +362,6 @@ const VendorDashboard = () => {
         {currentSection === "createReceipt" && <ReceiptForm businessName={vendor?.businessName} />}
         {currentSection === "viewReceipts" && <ViewReceipts />}
         {currentSection === "reports" && <Report />}
-        {currentSection === "help" && (
-            <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow p-6 text-center">
-                    <h1 className="text-3xl font-bold text-purple-600 mb-2">Varad Consultants & Analyst Pvt. Ltd</h1>
-                    <p className="text-gray-700 text-lg">How can we help you today?</p>
-                </div>
-                <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-2xl font-semibold text-gray-800 mb-4">Contact Us</h2>
-                    <div className="space-y-3 text-gray-700">
-                        <p><strong>Website:</strong> <a href="https://www.varadanalyst.com" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">www.varadanalyst.com</a></p>
-                        <p><strong>Phone:</strong> <a href="tel:+918446448461" className="text-purple-600 hover:underline">+91 8446448461</a></p>
-                        <p><strong>Address:</strong> 505, Shivcity Center, Vijaynagar, Sangli 416416</p>
-                        <p><strong>Email:</strong> <a href="mailto:support@varadanalyst.com" className="text-purple-600 hover:underline">support@varadanalyst.com</a></p>
-                    </div>
-                </div>
-            </div>
-        )}
       </div>
     </div>
   );

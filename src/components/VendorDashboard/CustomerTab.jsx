@@ -18,14 +18,12 @@ const CustomerTab = () => {
   const [customers, setCustomers] = useState([]);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
-    contact: "",
     address: "",
   });
   const [search, setSearch] = useState("");
   const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
-    contact: "",
     address: "",
   });
   const [loading, setLoading] = useState(true);
@@ -45,9 +43,14 @@ const CustomerTab = () => {
       const res = await axios.get(`${API_BASE_URI}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const sortedCustomers = (res.data.customers || []).sort(
-        (a, b) => a.srNo - b.srNo
-      );
+      const customerData = res.data?.customers || res.data || [];
+      if (!Array.isArray(customerData)) {
+        console.error("Fetched data is not an array:", customerData);
+        toast.error("Received an invalid format for customer data.");
+        setCustomers([]);
+        return;
+      }
+      const sortedCustomers = customerData.sort((a, b) => a.srNo - b.srNo);
       setCustomers(sortedCustomers);
     } catch (err) {
       console.error("Error fetching customers:", err);
@@ -69,14 +72,13 @@ const CustomerTab = () => {
 
   const handleAddCustomer = async (e) => {
     e.preventDefault();
-    if (!newCustomer.name || !newCustomer.contact) {
-      toast.warn("Customer Name and Contact are required.");
+    if (!newCustomer.name) {
+      toast.warn("Customer Name is required.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Get the new customer data from the API response
       const res = await axios.post(
         `${API_BASE_URI}/api/customers`,
         newCustomer,
@@ -84,11 +86,8 @@ const CustomerTab = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      
-      // Add the new customer directly to the state
       setCustomers((prevCustomers) => [...prevCustomers, res.data.customer]);
-      
-      setNewCustomer({ name: "", contact: "", address: "" });
+      setNewCustomer({ name: "", address: "" });
       toast.success("Customer added successfully!");
     } catch (err) {
       console.error("Error adding customer:", err);
@@ -102,7 +101,6 @@ const CustomerTab = () => {
     setEditingCustomerId(customer._id);
     setEditForm({
       name: customer.name,
-      contact: customer.contact,
       address: customer.address || "",
     });
   };
@@ -114,22 +112,17 @@ const CustomerTab = () => {
 
   const saveEdit = async (id) => {
     try {
-      // Get the updated customer data from the API response
       const res = await axios.put(
         `${API_BASE_URI}/api/customers/${id}`,
         editForm,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
       const updatedCustomer = res.data.customer;
-
-      // Find and update the customer in the state
       setCustomers((prevCustomers) =>
         prevCustomers.map((customer) =>
           customer._id === id ? updatedCustomer : customer
         )
       );
-      
       setEditingCustomerId(null);
       toast.success("Customer updated successfully!");
     } catch (err) {
@@ -229,33 +222,20 @@ const CustomerTab = () => {
                 className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition"
               />
             </div>
-            {/* Contact */}
+            {/* Address */}
             <div>
               <label className="font-semibold text-gray-600 block mb-1 text-sm">
-                Contact <span className="text-red-500">*</span>
+                Address
               </label>
               <input
                 type="text"
-                name="contact"
-                value={newCustomer.contact}
+                name="address"
+                value={newCustomer.address}
                 onChange={handleNewCustomerChange}
-                placeholder="e.g., 9876543210"
+                placeholder="e.g., 123 Main St"
                 className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition"
               />
             </div>
-          </div>
-          <div className="mt-4">
-            <label className="font-semibold text-gray-600 block mb-1 text-sm">
-              Address
-            </label>
-            <input
-              type="text"
-              name="address"
-              value={newCustomer.address}
-              onChange={handleNewCustomerChange}
-              placeholder="e.g., 123 Main St"
-              className="border border-gray-300 rounded-lg p-2 w-full focus:ring-1 focus:ring-purple-500 transition"
-            />
           </div>
           <div className="flex justify-center mt-4">
             <button
@@ -297,9 +277,6 @@ const CustomerTab = () => {
                   Name
                 </th>
                 <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
-                  Contact
-                </th>
-                <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
                   Address
                 </th>
                 <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase">
@@ -328,19 +305,6 @@ const CustomerTab = () => {
                         />
                       ) : (
                         customer.name
-                      )}
-                    </td>
-                    <td className="py-4 px-4">
-                      {editingCustomerId === customer._id ? (
-                        <input
-                          type="text"
-                          name="contact"
-                          value={editForm.contact}
-                          onChange={handleEditChange}
-                          className="border border-gray-300 rounded-lg p-1 w-full"
-                        />
-                      ) : (
-                        customer.contact
                       )}
                     </td>
                     <td className="py-4 px-4">
@@ -394,7 +358,7 @@ const CustomerTab = () => {
               ) : (
                 <tr>
                   <td
-                    colSpan="5"
+                    colSpan="4"
                     className="text-center py-10 text-gray-500"
                   >
                     No customers found.
