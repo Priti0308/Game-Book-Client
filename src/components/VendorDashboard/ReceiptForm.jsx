@@ -7,11 +7,14 @@ import React, {
 } from "react";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
-dayjs.extend(customParseFormat);
+import 'dayjs/locale/mr'; // Import Marathi locale
 import { FaEdit, FaTrashAlt, FaPrint, FaPlus, FaMinus } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
+
+dayjs.extend(customParseFormat);
+dayjs.locale('mr'); // Set locale globally to Marathi
 
 const API_BASE_URI = "https://game-book.onrender.com";
 
@@ -41,21 +44,38 @@ const evaluateExpression = (expression) => {
   }
 };
 
-const getInitialFormData = (businessName) => ({
-  _id: null,
-  businessName: businessName || "Bappa Gaming",
-  customerId: "",
-  customerName: "",
-  customerCompany: "",
-  day: dayjs().format("dddd"),
-  date: dayjs().format("DD-MM-YYYY"),
-  payment: "",
-  pendingAmount: "",
-  advanceAmount: "",
-  cuttingAmount: "",
-  jama: "",
-  chuk: "",
-});
+// Helper function to get Marathi day name
+const getMarathiDay = (englishDay) => {
+  const dayMap = {
+    Sunday: "रविवार",
+    Monday: "सोमवार",
+    Tuesday: "मंगळवार",
+    Wednesday: "बुधवार",
+    Thursday: "गुरुवार",
+    Friday: "शुक्रवार",
+    Saturday: "शनिवार",
+  };
+  return dayMap[englishDay] || englishDay;
+};
+
+const getInitialFormData = (businessName) => {
+  const currentDayInEnglish = dayjs().format("dddd");
+  return {
+    _id: null,
+    businessName: businessName || "Bappa Gaming",
+    customerId: "",
+    customerName: "",
+    customerCompany: "",
+    day: getMarathiDay(currentDayInEnglish),
+    date: dayjs().format("DD-MM-YYYY"),
+    payment: "",
+    pendingAmount: "",
+    advanceAmount: "",
+    cuttingAmount: "",
+    jama: "",
+    chuk: "",
+  };
+};
 
 const initialGameRows = [
   {
@@ -396,14 +416,14 @@ const ReceiptForm = ({ businessName }) => {
         gun: typeof row.gun === "object" ? row.gun : { val1: "", val2: "" },
       })
     );
-
+    const englishDay = dayjs(receipt.date).format("dddd");
     setFormData({
       _id: receipt._id,
       businessName: receipt.businessName || "Bappa Gaming",
       customerId: receipt.customerId,
       customerName: customer?.name || receipt.customerName,
       customerCompany: receipt.customerCompany || "",
-      day: dayjs(receipt.date).format("dddd"),
+      day: getMarathiDay(englishDay),
       date: dayjs(receipt.date).format("DD-MM-YYYY"),
       payment: receipt.payment || "",
       pendingAmount: receipt.pendingAmount?.toString() || "",
@@ -555,12 +575,12 @@ const ReceiptForm = ({ businessName }) => {
             align-items: center !important;
           }
           .printable-area .bottom-box > div.flex > span:first-child {
-            min-width: 90px; /* Fixed width for labels */
+            min-width: 90px;
             text-align: left !important;
           }
           .printable-area .bottom-box > div.flex > input,
           .printable-area .bottom-box > div.flex > span.font-bold {
-            flex: 1; /* Allow value to take remaining space */
+            flex: 1;
             text-align: right !important;
             width: auto !important;
           }
