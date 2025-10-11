@@ -113,7 +113,6 @@ const ReceiptForm = ({ businessName }) => {
       const response = await axios.get(`${API_BASE_URI}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Sort customers by their serial number (srNo) to ensure the correct order
       const customers = (response.data.customers || []).sort(
         (a, b) => a.srNo - b.srNo
       );
@@ -148,16 +147,13 @@ const ReceiptForm = ({ businessName }) => {
   const handleSerialNumberChange = (e) => {
     const serial = e.target.value;
     setSerialNumberInput(serial);
-
     const serialAsNumber = parseInt(serial, 10);
-
     if (
       !isNaN(serialAsNumber) &&
       serialAsNumber > 0 &&
       serialAsNumber <= customerList.length
     ) {
-      // Find the customer whose srNo matches the selected serial number
-      const customer = customerList.find(c => c.srNo === serialAsNumber);
+      const customer = customerList.find((c) => c.srNo === serialAsNumber);
       if (customer) {
         let lastPendingAmount = "";
         const customerReceipts = receipts.filter(
@@ -336,10 +332,10 @@ const ReceiptForm = ({ businessName }) => {
     }));
   }, [calculationResults.payment]);
 
-  const handleSave = async () => {
+  const handleSave = async (clear = true) => {
     if (!formData.customerId) {
       toast.error("Please select a customer.");
-      return;
+      return false;
     }
 
     const receiptToSend = {
@@ -370,12 +366,17 @@ const ReceiptForm = ({ businessName }) => {
         setReceipts([res.data.receipt, ...receipts]);
         toast.success("Receipt saved successfully!");
       }
-      clearForm();
+      if (clear) {
+        clearForm();
+      }
+      return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Error saving receipt");
       console.error("Save error:", error);
+      return false;
     }
   };
+
   const handleEdit = (id) => {
     const receipt = receipts.find((r) => r._id === id);
     if (!receipt) {
@@ -383,8 +384,6 @@ const ReceiptForm = ({ businessName }) => {
       return;
     }
     const customer = customerList.find((c) => c._id === receipt.customerId);
-    
-    // Set the serial number input based on the customer's srNo
     setSerialNumberInput(customer ? customer.srNo.toString() : "");
 
     const sanitizedGameRows = (receipt.gameRows || initialGameRows).map(
@@ -399,11 +398,19 @@ const ReceiptForm = ({ businessName }) => {
     );
 
     setFormData({
-      ...getInitialFormData(receipt.businessName),
-      ...receipt,
       _id: receipt._id,
+      businessName: receipt.businessName || "Bappa Gaming",
+      customerId: receipt.customerId,
       customerName: customer?.name || receipt.customerName,
+      customerCompany: receipt.customerCompany || "",
+      day: dayjs(receipt.date).format("dddd"),
       date: dayjs(receipt.date).format("DD-MM-YYYY"),
+      payment: receipt.payment || "",
+      pendingAmount: receipt.pendingAmount?.toString() || "",
+      advanceAmount: receipt.advanceAmount?.toString() || "",
+      cuttingAmount: receipt.cuttingAmount?.toString() || "",
+      jama: receipt.jama?.toString() || "",
+      chuk: receipt.chuk?.toString() || "",
     });
 
     setGameRows(sanitizedGameRows);
@@ -429,11 +436,18 @@ const ReceiptForm = ({ businessName }) => {
     }
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = async () => {
+    const savedSuccessfully = await handleSave(false);
+    if (savedSuccessfully) {
+      window.print();
+    }
+  };
 
   const handleTablePrint = (id) => {
     handleEdit(id);
-    setTimeout(() => handlePrint(), 200);
+    setTimeout(() => {
+      handlePrint();
+    }, 200);
   };
 
   const filteredReceipts = receipts.filter((r) =>
@@ -448,125 +462,118 @@ const ReceiptForm = ({ businessName }) => {
         @media print {
           @page {
             size: A4;
-            margin: 0.5in 0.3in 0.5in 0.3in;
+            margin: 0.5in;
           }
           body * { visibility: hidden; }
           .printable-area, .printable-area * { visibility: visible; }
           .printable-area {
             position: absolute; left: 0; top: 0; width: 100%; height: auto;
-            border: none !important; box-shadow: none !important; margin: 0;
-            padding: 0.5rem !important; font-size: 11px !important;
-            line-height: 1.2 !important;
+            border: 2px solid black !important;
+            box-shadow: none !important; margin: 0;
+            padding: 0.5rem !important;
+            font-size: 12px !important; 
+            font-weight: bold !important;
           }
           .print-hidden { display: none !important; }
+
+          /* Header Styles */
+          .printable-area h2 {
+            font-size: 20px !important; margin: 0 0 0.25rem 0 !important;
+            text-align: center !important; font-weight: bold !important;
+          }
+          .printable-area .header-section {
+            padding-bottom: 0.5rem !important;
+            border-bottom: 2px solid #000 !important;
+            position: relative !important;
+          }
+          .printable-area .company-header {
+            text-align: center !important; font-size: 14px !important;
+            font-weight: bold !important; margin: 0.25rem 0 !important;
+          }
+          .printable-area .info-section {
+            margin-top: 0.5rem !important;
+          }
+
+          /* Open/Close/Jod Section Style for Print */
+          .printable-area .values-section-print {
+            display: block !important;
+            position: absolute !important;
+            top: 3.8rem !important;
+            right: 0.5rem !important;
+            border: none !important;
+            padding: 0 !important;
+            font-size: 12px !important;
+          }
+          .printable-area .values-row {
+            display: flex !important;
+            justify-content: space-between !important;
+            gap: 1rem !important;
+          }
+
+          /* Table, General Inputs, and Bottom Boxes */
           .printable-area input, .printable-area select {
             border: none !important; background: transparent !important;
             padding: 0 !important; color: black !important;
             -webkit-appearance: none; -moz-appearance: none; appearance: none;
             text-align: inherit; font-size: inherit !important;
-            font-family: inherit; font-weight: inherit;
+            font-family: inherit; font-weight: inherit !important;
             min-width: 0 !important;
           }
           .printable-area table {
-            width: 100% !important; table-layout: fixed !important;
-            border-collapse: collapse !important; font-size: 10px !important;
-            margin: 0.2rem 0 !important;
+            width: 100% !important; margin: 0.5rem 0 !important;
           }
-
           .printable-area th, .printable-area td {
-            padding: 6px 2px !important;
+            padding: 6px 4px !important;
             border: 1px solid #000 !important;
-            word-wrap: break-word !important;
-            word-break: break-all !important;
-            font-size: 9px !important;
-            line-height: 1.2 !important;
+            font-size: 12px !important;
             vertical-align: middle !important;
+            text-align: center;
           }
-
-          .printable-area th {
-            background-color: #f0f0f0 !important; font-weight: bold !important;
-            text-align: center !important;
+          .printable-area td {
+            text-align: right;
           }
-          .printable-area table col:nth-child(1) { width: 8% !important; }
-          .printable-area table col:nth-child(2) { width: 12% !important; }
-          .printable-area table col:nth-child(3) { width: 15% !important; }
-          .printable-area table col:nth-child(4) { width: 15% !important; }
-          .printable-area table col:nth-child(5) { width: 15% !important; }
-          .printable-area table col:nth-child(6) { width: 18% !important; }
-          .printable-area table col:nth-child(7) { width: 17% !important; }
-
-          .printable-area input[type="text"],
-          .printable-area input[type="number"] {
-            width: 100% !important; font-size: 8px !important;
-            text-align: right !important; border-bottom: none !important;
-            height: auto !important;
+          .printable-area td:first-child {
+            text-align: center;
           }
-          .printable-area .flex {
-            display: flex !important; align-items: center !important;
-            justify-content: center !important; flex-wrap: nowrap !important;
-            font-size: 8px !important;
-          }
-          .printable-area .flex input {
-            width: 15px !important; text-align: center !important;
-            margin: 0 1px !important;
-          }
-          .printable-area .flex span { font-size: 7px !important; margin: 0 1px !important; }
-          .printable-area h2 {
-            font-size: 16px !important; margin: 0.3rem 0 0.5rem 0 !important;
-            text-align: center !important; font-weight: bold !important;
-            text-transform: uppercase !important; letter-spacing: 1px !important;
-            border-bottom: 2px solid #000 !important; padding-bottom: 0.2rem !important;
-          }
-          .printable-area .header-section {
-            margin-bottom: 0.5rem !important; padding-bottom: 0.3rem !important;
-            border-bottom: 1px solid #ccc !important;
-          }
-          .printable-area .company-header {
-            text-align: center !important; font-size: 12px !important;
-            font-weight: bold !important; margin: 0.2rem 0 !important;
-          }
-          .printable-area .info-section {
-            display: flex !important; justify-content: space-between !important;
-            align-items: flex-start !important; margin: 0.3rem 0 0.5rem 0 !important;
-            font-size: 10px !important;
-          }
-          .printable-area .date-info { font-size: 10px !important; line-height: 1.3 !important; }
-          .printable-area .customer-info { font-size: 10px !important; text-align: right !important; }
-
-          .printable-area .values-section-print {
-            display: block !important;
-            padding: 0 !important;
-            font-size: 9px !important;
-          }
-
-          .printable-area .values-row {
-            display: flex !important; justify-content: space-between !important;
-            margin: 0.1rem 0 !important;
-          }
-          .printable-area button { display: none !important; }
-
+          
+          /* Summary Box Styles */
           .printable-area .bottom-box-container {
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: stretch !important;
-            width: 100% !important;
-            gap: 10px !important;
+            margin-top: 1rem !important;
           }
           .printable-area .bottom-box {
-            width: 49% !important;
             border: 1px solid #000 !important;
-            padding: 4px !important;
+            padding: 8px !important;
+            font-weight: bold !important;
+          }
+          .printable-area .bottom-box div {
+            font-size: 12px !important;
+          }
+          /* New styles for perfect alignment in summary boxes */
+          .printable-area .bottom-box > div.flex {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+          }
+          .printable-area .bottom-box > div.flex > span:first-child {
+            min-width: 90px; /* Fixed width for labels */
+            text-align: left !important;
+          }
+          .printable-area .bottom-box > div.flex > input,
+          .printable-area .bottom-box > div.flex > span.font-bold {
+            flex: 1; /* Allow value to take remaining space */
+            text-align: right !important;
+            width: auto !important;
           }
 
-          #add-row-button {
+          /* Hide specific elements */
+          #add-row-button, .printable-area button {
             display: none !important;
-            visibility: hidden !important;
           }
         }
 
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none; margin: 0;
+          -webkit-appearance: none; margin: 0;
         }
         input[type=number] { -moz-appearance: textfield; }
       `}</style>
@@ -637,6 +644,21 @@ const ReceiptForm = ({ businessName }) => {
                 />
               </div>
             </div>
+            
+            <div className="values-section-print hidden">
+              <div className="values-row">
+                <span>ओपन:</span>
+                <span>{openCloseValues.open || "___"}</span>
+              </div>
+              <div className="values-row">
+                <span>क्लोज:</span>
+                <span>{openCloseValues.close || "___"}</span>
+              </div>
+              <div className="values-row">
+                <span>जोड:</span>
+                <span>{openCloseValues.jod || "___"}</span>
+              </div>
+            </div>
 
             <div className="info-section mt-4">
               <div className="date-info">
@@ -652,45 +674,31 @@ const ReceiptForm = ({ businessName }) => {
                       <div className="flex items-center">
                         <strong className="mr-2">S.No:</strong>
                         <select
-                           value={serialNumberInput}
-                           onChange={handleSerialNumberChange}
-                           className="p-1 w-24 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={serialNumberInput}
+                          onChange={handleSerialNumberChange}
+                          className="p-1 w-24 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="">Select No.</option>
-                            {customerList.map((customer) => (
-                                <option key={customer._id} value={customer.srNo}>
-                                    {customer.srNo}
-                                </option>
-                            ))}
+                          <option value="">Select No.</option>
+                          {customerList.map((customer) => (
+                            <option key={customer._id} value={customer.srNo}>
+                              {customer.srNo}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div className="mt-2 pl-1">
                         <span className="font-bold text-black-700">
-                          {formData.customerName 
-                            ? `Customer Name: ${formData.customerName}` 
+                          {formData.customerName
+                            ? `Customer Name: ${formData.customerName}`
                             : "No customer selected"}
                         </span>
                       </div>
                     </div>
                   </div>
                   <span className="hidden print:inline customer-info">
-                    <strong>Customer Name:</strong> {formData.customerName || "N/A"}
+                    <strong>Customer Name:</strong>{" "}
+                    {formData.customerName || "N/A"}
                   </span>
-                </div>
-              </div>
-
-              <div className="values-section-print hidden">
-                <div className="values-row">
-                  <span className="font-bold">Open:</span>
-                  <span>{openCloseValues.open || "___"}</span>
-                </div>
-                <div className="values-row">
-                  <span className="font-bold">Close:</span>
-                  <span>{openCloseValues.close || "___"}</span>
-                </div>
-                <div className="values-row">
-                  <span className="font-bold">Jod:</span>
-                  <span>{openCloseValues.jod || "___"}</span>
                 </div>
               </div>
             </div>
@@ -739,26 +747,28 @@ const ReceiptForm = ({ businessName }) => {
                           className="w-full text-right bg-white border border-gray-300 rounded-md p-1 text-sm mb-1 print-hidden"
                         />
                         <div className="hidden print:block w-full print:text-center print:border-b print:border-gray-400 print:pb-1 print:mb-1">
-                           {row[colName]}
+                          {row[colName]}
                         </div>
 
                         {hasMultiplier && (
                           <span className="text-gray-500 whitespace-nowrap flex items-center justify-end print:justify-center">
                             *{" "}
-                              <input
-                                type="number"
-                                value={effectiveMultiplier}
-                                onChange={(e) =>
-                                  handleMultiplierChange(
-                                    index,
-                                    colName === "jod"
-                                      ? Number(e.target.value) / 10
-                                      : e.target.value
-                                  )
-                                }
-                                className="w-8 text-center bg-transparent focus:outline-none print-hidden"
-                              />
-                            <span className="hidden print:inline">{effectiveMultiplier}</span>
+                            <input
+                              type="number"
+                              value={effectiveMultiplier}
+                              onChange={(e) =>
+                                handleMultiplierChange(
+                                  index,
+                                  colName === "jod"
+                                    ? Number(e.target.value) / 10
+                                    : e.target.value
+                                )
+                              }
+                              className="w-8 text-center bg-transparent focus:outline-none print-hidden"
+                            />
+                            <span className="hidden print:inline">
+                              {effectiveMultiplier}
+                            </span>
                             <span className="ml-1">
                               = {cellTotal.toFixed(0)}
                             </span>
@@ -1039,7 +1049,7 @@ const ReceiptForm = ({ businessName }) => {
 
         <div className="print-hidden flex justify-center mt-6 space-x-4">
           <button
-            onClick={handleSave}
+            onClick={() => handleSave(true)}
             className="px-6 py-2 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600"
           >
             Save
@@ -1098,7 +1108,8 @@ const ReceiptForm = ({ businessName }) => {
                       {dayjs(r.date).format("DD-MM-YYYY")}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {r.finalTotalAfterChuk && Number(r.finalTotalAfterChuk).toFixed(2)}
+                      {r.finalTotalAfterChuk &&
+                        Number(r.finalTotalAfterChuk).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center space-x-3">
                       <button
