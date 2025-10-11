@@ -133,10 +133,20 @@ const ReceiptForm = ({ businessName }) => {
       const response = await axios.get(`${API_BASE_URI}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const customers = (response.data.customers || []).sort(
+
+      // 1. Sort customers by their original srNo to ensure a consistent order
+      const sortedCustomers = (response.data.customers || []).sort(
         (a, b) => a.srNo - b.srNo
       );
-      setCustomerList(customers);
+
+      // 2. Map over the sorted list to create a new list with sequential srNo
+      const sequentialCustomers = sortedCustomers.map((customer, index) => ({
+        ...customer, // Copy all original customer data (_id, name, etc.)
+        srNo: index + 1, // Overwrite srNo with the correct sequential number
+      }));
+
+      setCustomerList(sequentialCustomers);
+      
     } catch (error) {
       toast.error("Failed to fetch customer data.");
     }
