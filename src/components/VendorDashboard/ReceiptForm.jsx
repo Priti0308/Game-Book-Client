@@ -7,14 +7,14 @@ import React, {
 } from "react";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
-import 'dayjs/locale/mr'; // Import Marathi locale
+import "dayjs/locale/mr"; // Import Marathi locale
 import { FaEdit, FaTrashAlt, FaPrint, FaPlus, FaMinus } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
 
 dayjs.extend(customParseFormat);
-dayjs.locale('mr'); // Set locale globally to Marathi
+dayjs.locale("mr"); // Set locale globally to Marathi
 
 const API_BASE_URI = "https://game-book.onrender.com";
 
@@ -120,12 +120,18 @@ const ReceiptForm = ({ businessName }) => {
   const token = localStorage.getItem("token");
   const formRef = useRef(null);
 
+  // ## FIX STARTS HERE ##
+  // The clearForm function is updated to be more stable.
+  // By using a functional update `setFormData(prev => ...)` we ensure we always have the latest state.
+  // This prevents stale state issues that caused the clear button to fail and edits to save as new entries.
   const clearForm = useCallback(() => {
-    setFormData(getInitialFormData(formData.businessName));
+    setFormData((prevFormData) => getInitialFormData(prevFormData.businessName));
     setGameRows(initialGameRows);
     setOpenCloseValues({ open: "", close: "", jod: "" });
     setSerialNumberInput("");
-  }, [formData.businessName]);
+  }, []); // The dependency array is now empty, making the function more stable.
+  // ## FIX ENDS HERE ##
+
 
   const fetchCustomers = useCallback(async () => {
     if (!token) return;
@@ -134,19 +140,16 @@ const ReceiptForm = ({ businessName }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // 1. Sort customers by their original srNo to ensure a consistent order
       const sortedCustomers = (response.data.customers || []).sort(
         (a, b) => a.srNo - b.srNo
       );
 
-      // 2. Map over the sorted list to create a new list with sequential srNo
       const sequentialCustomers = sortedCustomers.map((customer, index) => ({
-        ...customer, // Copy all original customer data (_id, name, etc.)
-        srNo: index + 1, // Overwrite srNo with the correct sequential number
+        ...customer,
+        srNo: index + 1,
       }));
 
       setCustomerList(sequentialCustomers);
-      
     } catch (error) {
       toast.error("Failed to fetch customer data.");
     }
@@ -174,18 +177,30 @@ const ReceiptForm = ({ businessName }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  /**
-   * Handles changes to the serial number dropdown.
-   * When a customer is selected, it automatically populates the form with data
-   * from their most recent receipt, including:
-   * - Previous final total as the new pending amount.
-   * - Previous advance amount and cutting amount.
-   * - Previous Open/Close/Jod values.
-   */
   const handleSerialNumberChange = (e) => {
     const serial = e.target.value;
     setSerialNumberInput(serial);
     const serialAsNumber = parseInt(serial, 10);
+
+    const todayStr = dayjs().format("YYYY-MM-DD");
+    const receiptsFromToday = receipts.filter(
+      (r) => dayjs(r.date).format("YYYY-MM-DD") === todayStr
+    );
+
+    let lastOpenClose = { open: "", close: "", jod: "" };
+    if (receiptsFromToday.length > 0) {
+      receiptsFromToday.sort((a, b) => dayjs(b.date).diff(dayjs(a.date)));
+      const latestReceiptOfTheDay = receiptsFromToday[0];
+
+      if (latestReceiptOfTheDay.openCloseValues) {
+        lastOpenClose = {
+          open: latestReceiptOfTheDay.openCloseValues.open || "",
+          close: latestReceiptOfTheDay.openCloseValues.close || "",
+          jod: latestReceiptOfTheDay.openCloseValues.jod || "",
+        };
+      }
+    }
+    setOpenCloseValues(lastOpenClose);
 
     if (
       !isNaN(serialAsNumber) &&
@@ -194,7 +209,6 @@ const ReceiptForm = ({ businessName }) => {
     ) {
       const customer = customerList.find((c) => c.srNo === serialAsNumber);
       if (customer) {
-        // Find all receipts for the selected customer
         const customerReceipts = receipts.filter(
           (r) => r.customerId === customer._id
         );
@@ -202,39 +216,22 @@ const ReceiptForm = ({ businessName }) => {
         let lastPendingAmount = "";
         let lastAdvanceAmount = "";
         let lastCuttingAmount = "";
-        let lastOpenClose = { open: "", close: "", jod: "" };
 
         if (customerReceipts.length > 0) {
-          // Sort receipts by date to get the most recent one
           customerReceipts.sort((a, b) => dayjs(b.date).diff(dayjs(a.date)));
           const latestReceipt = customerReceipts[0];
 
-          // 1. Get previous 'Antim Total' for the 'Pending Amount' field
           if (latestReceipt.finalTotalAfterChuk) {
             lastPendingAmount = latestReceipt.finalTotalAfterChuk.toString();
           }
-
-          // 2. Get previous 'Advance Amount' for the new 'Advance Amount' field
           if (latestReceipt.advanceAmount) {
             lastAdvanceAmount = latestReceipt.advanceAmount.toString();
           }
-
-          // 3. Get previous 'Cutting Amount' for the new 'Cutting Amount' field
           if (latestReceipt.cuttingAmount) {
             lastCuttingAmount = latestReceipt.cuttingAmount.toString();
           }
-
-          // 4. Get previous Open/Close/Jod values
-          if (latestReceipt.openCloseValues) {
-            lastOpenClose = {
-              open: latestReceipt.openCloseValues.open || "",
-              close: latestReceipt.openCloseValues.close || "",
-              jod: latestReceipt.openCloseValues.jod || "",
-            };
-          }
         }
 
-        // Update the form state with the fetched values
         setFormData((prev) => ({
           ...prev,
           customerId: customer._id,
@@ -243,11 +240,8 @@ const ReceiptForm = ({ businessName }) => {
           advanceAmount: lastAdvanceAmount,
           cuttingAmount: lastCuttingAmount,
         }));
-        
-        setOpenCloseValues(lastOpenClose);
       }
     } else {
-      // Clear fields if no customer is selected or input is invalid
       setFormData((prev) => ({
         ...prev,
         customerId: "",
@@ -256,7 +250,6 @@ const ReceiptForm = ({ businessName }) => {
         advanceAmount: "",
         cuttingAmount: "",
       }));
-      setOpenCloseValues({ open: "", close: "", jod: "" });
     }
   };
 
@@ -721,7 +714,7 @@ const ReceiptForm = ({ businessName }) => {
                 />
               </div>
             </div>
-            
+
             <div className="values-section-print hidden">
               <div className="values-row">
                 <span>ओपन:</span>
