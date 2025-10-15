@@ -174,10 +174,19 @@ const ReceiptForm = ({ businessName }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  /**
+   * Handles changes to the serial number dropdown.
+   * When a customer is selected, it automatically populates the form with data
+   * from their most recent receipt, including:
+   * - Previous final total as the new pending amount.
+   * - Previous advance amount and cutting amount.
+   * - Previous Open/Close/Jod values.
+   */
   const handleSerialNumberChange = (e) => {
     const serial = e.target.value;
     setSerialNumberInput(serial);
     const serialAsNumber = parseInt(serial, 10);
+
     if (
       !isNaN(serialAsNumber) &&
       serialAsNumber > 0 &&
@@ -185,31 +194,69 @@ const ReceiptForm = ({ businessName }) => {
     ) {
       const customer = customerList.find((c) => c.srNo === serialAsNumber);
       if (customer) {
-        let lastPendingAmount = "";
+        // Find all receipts for the selected customer
         const customerReceipts = receipts.filter(
           (r) => r.customerId === customer._id
         );
+
+        let lastPendingAmount = "";
+        let lastAdvanceAmount = "";
+        let lastCuttingAmount = "";
+        let lastOpenClose = { open: "", close: "", jod: "" };
+
         if (customerReceipts.length > 0) {
-          customerReceipts.sort((a, b) => new Date(b.date) - new Date(a.date));
-          if (customerReceipts[0].finalTotalAfterChuk) {
-            lastPendingAmount =
-              customerReceipts[0].finalTotalAfterChuk.toString();
+          // Sort receipts by date to get the most recent one
+          customerReceipts.sort((a, b) => dayjs(b.date).diff(dayjs(a.date)));
+          const latestReceipt = customerReceipts[0];
+
+          // 1. Get previous 'Antim Total' for the 'Pending Amount' field
+          if (latestReceipt.finalTotalAfterChuk) {
+            lastPendingAmount = latestReceipt.finalTotalAfterChuk.toString();
+          }
+
+          // 2. Get previous 'Advance Amount' for the new 'Advance Amount' field
+          if (latestReceipt.advanceAmount) {
+            lastAdvanceAmount = latestReceipt.advanceAmount.toString();
+          }
+
+          // 3. Get previous 'Cutting Amount' for the new 'Cutting Amount' field
+          if (latestReceipt.cuttingAmount) {
+            lastCuttingAmount = latestReceipt.cuttingAmount.toString();
+          }
+
+          // 4. Get previous Open/Close/Jod values
+          if (latestReceipt.openCloseValues) {
+            lastOpenClose = {
+              open: latestReceipt.openCloseValues.open || "",
+              close: latestReceipt.openCloseValues.close || "",
+              jod: latestReceipt.openCloseValues.jod || "",
+            };
           }
         }
+
+        // Update the form state with the fetched values
         setFormData((prev) => ({
           ...prev,
           customerId: customer._id,
           customerName: customer.name,
           pendingAmount: lastPendingAmount,
+          advanceAmount: lastAdvanceAmount,
+          cuttingAmount: lastCuttingAmount,
         }));
+        
+        setOpenCloseValues(lastOpenClose);
       }
     } else {
+      // Clear fields if no customer is selected or input is invalid
       setFormData((prev) => ({
         ...prev,
         customerId: "",
         customerName: "",
         pendingAmount: "",
+        advanceAmount: "",
+        cuttingAmount: "",
       }));
+      setOpenCloseValues({ open: "", close: "", jod: "" });
     }
   };
 
