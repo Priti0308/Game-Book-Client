@@ -1,20 +1,14 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
 import {
-    FaSearch,
-    FaSpinner,
-    FaExclamationCircle,
-    FaFileCsv,
-    FaPrint,
-    FaCalendarDay,
-    FaCalendarWeek,
-    FaCalendarAlt
+    FaSearch, FaSpinner, FaExclamationCircle, FaFileCsv, FaPrint,
+    FaCalendarWeek, FaCalendarAlt, FaChartLine, FaArrowUp, FaArrowDown
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 // --- Constants ---
-const API_BASE_URI = "https://game-book.onrender.com"; // Your correct backend URL
+const API_BASE_URI = "https://game-book.onrender.com";
 const ITEMS_PER_PAGE = 10;
 const SEARCH_DEBOUNCE_DELAY = 300;
 
@@ -33,12 +27,10 @@ const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
     }).format(amount || 0);
 };
 
-// --- UI Sub-components (No changes here) ---
+// --- UI Sub-components ---
 
 const SummaryCard = ({ title, value, icon, color, loading }) => {
     const colors = {
@@ -46,7 +38,6 @@ const SummaryCard = ({ title, value, icon, color, loading }) => {
         blue: 'from-blue-500 to-blue-600',
         green: 'from-green-500 to-green-600',
     };
-
     return (
         <div className={`p-6 rounded-2xl text-white shadow-lg bg-gradient-to-br ${colors[color]}`}>
             <div className="flex justify-between items-start">
@@ -59,6 +50,31 @@ const SummaryCard = ({ title, value, icon, color, loading }) => {
                     )}
                 </div>
                 <div className="text-4xl opacity-50">{icon}</div>
+            </div>
+        </div>
+    );
+};
+
+const ProfitLossCard = ({ title, value, loading }) => {
+    const isProfit = value >= 0;
+    const bgColor = isProfit ? 'bg-green-50' : 'bg-red-50';
+    const textColor = isProfit ? 'text-green-800' : 'text-red-800';
+    const amountColor = isProfit ? 'text-green-900' : 'text-red-900';
+
+    return (
+        <div className={`p-6 rounded-2xl shadow-lg ${bgColor} border ${isProfit ? 'border-green-200' : 'border-red-200'}`}>
+            <div className="flex justify-between items-start">
+                <div>
+                    <p className={`text-lg font-medium ${textColor}`}>{title}</p>
+                    {loading ? (
+                        <div className="h-8 w-32 bg-gray-300 rounded-md animate-pulse mt-1"></div>
+                    ) : (
+                        <p className={`text-3xl font-bold tracking-tight ${amountColor}`}>{formatCurrency(value)}</p>
+                    )}
+                </div>
+                <div className={`text-4xl opacity-50 ${textColor}`}>
+                    {isProfit ? <FaArrowUp /> : <FaArrowDown />}
+                </div>
             </div>
         </div>
     );
@@ -127,8 +143,7 @@ const CustomerTable = ({ customers, loading, pageStartIndex }) => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {customers.map((c, index) => {
-                        // ✅ UPDATED LOGIC HERE
-                        const finalTotal = c.latestBalance || 0; // Use the new field from the API
+                        const finalTotal = c.latestBalance || 0;
                         const yene = finalTotal > 0 ? finalTotal : 0;
                         const dene = finalTotal < 0 ? Math.abs(finalTotal) : 0;
 
@@ -159,10 +174,13 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     );
 };
 
-
 export default function ReportPage() {
     const [allCustomers, setAllCustomers] = useState([]);
-    const [summary, setSummary] = useState({ daily: 0, weekly: 0, monthly: 0 });
+    const [summary, setSummary] = useState({
+        weekly: { income: 0, profit: 0 },
+        monthly: { income: 0, profit: 0 },
+        yearly: { income: 0, profit: 0 }
+    });
     const [loading, setLoading] = useState(true);
     const [summaryLoading, setSummaryLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -186,22 +204,34 @@ export default function ReportPage() {
 
         try {
             const headers = { Authorization: `Bearer ${token}` };
-            const [customerRes, dailyRes, weeklyRes, monthlyRes] = await Promise.all([
-                axios.get(`${API_BASE_URI}/api/reports/customers/all-balances`, { headers }), // Using the updated route
-                axios.get(`${API_BASE_URI}/api/reports/summary/daily`, { headers }),
-                axios.get(`${API_BASE_URI}/api/reports/summary/weekly`, { headers }),
-                axios.get(`${API_BASE_URI}/api/reports/summary/monthly`, { headers }),
+            // Add a cache-busting timestamp to each URL to prevent 304 errors
+            const timestamp = Date.now();
+            const customerUrl = `${API_BASE_URI}/api/reports/customers/all-balances?_=${timestamp}`;
+            const weeklyUrl = `${API_BASE_URI}/api/reports/summary/weekly?_=${timestamp}`;
+            const monthlyUrl = `${API_BASE_URI}/api/reports/summary/monthly?_=${timestamp}`;
+            const yearlyUrl = `${API_BASE_URI}/api/reports/summary/yearly?_=${timestamp}`;
+
+            const [customerRes, weeklyRes, monthlyRes, yearlyRes] = await Promise.all([
+                axios.get(customerUrl, { headers }),
+                axios.get(weeklyUrl, { headers }),
+                axios.get(monthlyUrl, { headers }),
+                axios.get(yearlyUrl, { headers }),
             ]);
 
-            if (!Array.isArray(customerRes.data)) {
-                throw new Error("Invalid customer data from server.");
-            }
             setAllCustomers(customerRes.data);
-
             setSummary({
-                daily: dailyRes.data.totalIncome || 0,
-                weekly: weeklyRes.data.totalIncome || 0,
-                monthly: monthlyRes.data.totalIncome || 0,
+                weekly: {
+                    income: weeklyRes.data.totalIncome || 0,
+                    profit: weeklyRes.data.totalProfit || 0
+                },
+                monthly: {
+                    income: monthlyRes.data.totalIncome || 0,
+                    profit: monthlyRes.data.totalProfit || 0
+                },
+                yearly: {
+                    income: yearlyRes.data.totalIncome || 0,
+                    profit: yearlyRes.data.totalProfit || 0
+                },
             });
 
         } catch (err) {
@@ -235,7 +265,6 @@ export default function ReportPage() {
         setCurrentPage(1);
     }, [debouncedSearch]);
 
-    // ✅ UPDATED CSV EXPORT LOGIC
     const handleExportCSV = () => {
         if (allCustomers.length === 0) {
             toast.warn("No customer data to export.");
@@ -264,7 +293,7 @@ export default function ReportPage() {
 
     if (error && allCustomers.length === 0) {
         return (
-            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-7xl mx-auto">
                 <EmptyState icon={<FaExclamationCircle className="text-red-500 text-3xl" />} title="Failed to Load Data" message={error} onRetry={fetchData} />
             </div>
         );
@@ -288,15 +317,23 @@ export default function ReportPage() {
             `}</style>
 
             <div className="bg-gray-50 min-h-full p-4 sm:p-6 lg:p-8">
-                <div className="bg-white rounded-2xl shadow-xl p-6 max-w-6xl mx-auto space-y-6">
+                <div className="bg-white rounded-2xl shadow-xl p-6 max-w-7xl mx-auto space-y-6">
                     <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
                     <div className="printable-area">
                         <h1 className="text-3xl font-bold text-gray-800 mb-6">Reports Dashboard</h1>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print-hidden">
-                            <SummaryCard title="Today's Income" value={summary.daily} icon={<FaCalendarDay />} color="purple" loading={summaryLoading} />
-                            <SummaryCard title="This Week's Income" value={summary.weekly} icon={<FaCalendarWeek />} color="blue" loading={summaryLoading} />
-                            <SummaryCard title="This Month's Income" value={summary.monthly} icon={<FaCalendarAlt />} color="green" loading={summaryLoading} />
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4 print-hidden">
+                            <SummaryCard title="This Week's Income" value={summary.weekly.income} icon={<FaCalendarWeek />} color="purple" loading={summaryLoading} />
+                            <SummaryCard title="This Month's Income" value={summary.monthly.income} icon={<FaCalendarAlt />} color="blue" loading={summaryLoading} />
+                            <SummaryCard title="This Year's Income" value={summary.yearly.income} icon={<FaChartLine />} color="green" loading={summaryLoading} />
                         </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print-hidden">
+                             <ProfitLossCard title="Weekly Profit/Loss" value={summary.weekly.profit} loading={summaryLoading} />
+                             <ProfitLossCard title="Monthly Profit/Loss" value={summary.monthly.profit} loading={summaryLoading} />
+                             <ProfitLossCard title="Yearly Profit/Loss" value={summary.yearly.profit} loading={summaryLoading} />
+                        </div>
+                        
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 print-hidden">
                             <div className="relative">
                                 <FaSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
@@ -307,11 +344,11 @@ export default function ReportPage() {
                                 <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"><FaPrint /> Print</button>
                             </div>
                         </div>
+                        
                         <div className="print-hidden">
                             <CustomerTable customers={currentCustomersOnPage} loading={loading && allCustomers.length === 0} pageStartIndex={pageStartIndex} />
                         </div>
                         
-                        {/* ✅ UPDATED PRINTING TABLE LOGIC */}
                         <div className="hidden print:block">
                             <h2 className="text-xl font-semibold mb-2">All Customers Balance</h2>
                             <table className="min-w-full divide-y divide-gray-200">

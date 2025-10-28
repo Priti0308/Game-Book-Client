@@ -25,7 +25,7 @@ const Shortcut = () => {
                 const customerData = response.data.customers || response.data;
                 
                 const initialData = customerData
-                    .sort((a, b) => a.srNo - b.srNo)
+                    .sort((a, b) => Number(a.srNo) - Number(b.srNo))
                     .map(customer => ({
                         ...customer,
                         aamdanIncome: '',
@@ -55,6 +55,7 @@ const Shortcut = () => {
         }
     };
 
+    // --- REVIEW THIS FUNCTION CAREFULLY ---
     const handleSave = async () => {
         const dataToSave = customerIncomes
             .filter(c => c.aamdanIncome || c.kulanIncome)
@@ -72,13 +73,12 @@ const Shortcut = () => {
         setSaving(true);
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            
-            // ✅ **THIS IS THE CORRECTED LINE**
-            // Changed 'shortcut' to 'shortcuts' to match the backend route
             await axios.post(`${API_BASE_URI}/api/shortcuts/income`, dataToSave, config);
 
+            // This is the success logic that should run
             toast.success("Incomes saved successfully!");
 
+            // This clears the input fields
             setCustomerIncomes(prev =>
                 prev.map(customer => ({
                     ...customer,
@@ -86,6 +86,9 @@ const Shortcut = () => {
                     kulanIncome: ''
                 }))
             );
+
+            // Make sure you DO NOT have any navigation logic here, like navigate('/reports')
+
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to save incomes.");
         } finally {
@@ -101,7 +104,6 @@ const Shortcut = () => {
         <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-full">
             <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6">
                 <h1 className="text-3xl font-bold text-gray-800 mb-6">Manual Income Entry</h1>
-
                 <div className="overflow-x-auto border rounded-lg shadow">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
@@ -142,7 +144,6 @@ const Shortcut = () => {
                         </tbody>
                     </table>
                 </div>
-
                 <div className="mt-6 flex justify-end">
                     <button
                         onClick={handleSave}
