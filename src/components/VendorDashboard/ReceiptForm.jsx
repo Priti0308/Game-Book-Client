@@ -190,9 +190,17 @@ const ReceiptForm = ({ businessName }) => {
 
     let lastOpenClose = { open: "", close: "", jod: "" };
     if (receiptsFromToday.length > 0) {
-      receiptsFromToday.sort((a, b) =>
-        dayjs(b.date, "DD-MM-YYYY").diff(dayjs(a.date, "DD-MM-YYYY"))
-      );
+      // ## UPDATED LOGIC ##
+      // Sort by date and then by _id to get the true latest receipt of the day
+      receiptsFromToday.sort((a, b) => {
+        const dateA = dayjs(a.date);
+        const dateB = dayjs(b.date);
+        const dateDiff = dateB.diff(dateA);
+        if (dateDiff !== 0) return dateDiff;
+        if (b._id > a._id) return 1;
+        if (a._id < b._id) return -1;
+        return 0;
+      });
       const latestReceiptOfTheDay = receiptsFromToday[0];
 
       if (latestReceiptOfTheDay.openCloseValues) {
@@ -221,9 +229,18 @@ const ReceiptForm = ({ businessName }) => {
         let lastCuttingAmount = "";
 
         if (customerReceipts.length > 0) {
-          customerReceipts.sort((a, b) =>
-            dayjs(b.date).diff(dayjs(a.date))
-          );
+          // ## UPDATED LOGIC ##
+          // Sort by date and then by _id to get the true latest receipt for the customer
+          customerReceipts.sort((a, b) => {
+            const dateA = dayjs(a.date);
+            const dateB = dayjs(b.date);
+            const dateDiff = dateB.diff(dateA);
+            if (dateDiff !== 0) return dateDiff;
+            // If dates are the same, sort by MongoDB _id descending (newer first)
+            if (b._id > a._id) return 1;
+            if (a._id < b._id) return -1;
+            return 0;
+          });
           const latestReceipt = customerReceipts[0];
 
           if (latestReceipt.finalTotalAfterChuk) {
@@ -583,9 +600,7 @@ const ReceiptForm = ({ businessName }) => {
     <div className="min-h-screen bg-gray-100 p-2 sm:p-8 font-sans">
       <ToastContainer position="top-right" autoClose={3000} />
 
-      {/* ## UPDATED: Styles to fix image scrollbars ## */}
       <style>{`
-        /* --- Styles to make the shared image look like the print view --- */
         .sharing-view {
           position: absolute !important;
           left: 0;
@@ -599,10 +614,10 @@ const ReceiptForm = ({ businessName }) => {
           font-size: 12px !important;
           font-weight: bold !important;
           width: 8.27in;
-          overflow: hidden !important; /* HIDE SCROLLBARS ON MAIN CONTAINER */
+          overflow: hidden !important;
         }
         .sharing-view .overflow-x-auto {
-            overflow: visible !important; /* ALLOW TABLE TO BE FULL WIDTH */
+            overflow: visible !important;
         }
         .sharing-view h2 {
           font-size: 20px !important; margin: 0 0 0.25rem 0 !important;
@@ -677,7 +692,6 @@ const ReceiptForm = ({ businessName }) => {
         .sharing-view .hidden.print\\:inline { display: inline !important; }
         .sharing-view .hidden.print\\:block { display: block !important; }
 
-        /* --- Original Print Styles (Unchanged) --- */
         @media print {
           @page {
             size: A4;
@@ -786,7 +800,6 @@ const ReceiptForm = ({ businessName }) => {
         input[type=number] { -moz-appearance: textfield; }
       `}</style>
       
-      {/* The rest of your JSX remains exactly the same... */}
       <div
         ref={formRef}
         className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8"
@@ -795,7 +808,6 @@ const ReceiptForm = ({ businessName }) => {
           ref={printRef}
           className="printable-area p-4 border border-gray-400 rounded-lg"
         >
-          {/* Form content remains the same */}
            <div className="header-section relative pb-4 mb-4">
              <div className="text-center">
                <h2 className="font-bold text-2xl">{formData.businessName}</h2>

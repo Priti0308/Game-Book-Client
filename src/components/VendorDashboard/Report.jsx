@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
+// ✅ FIX: Replaced 'react-icons/fa' with 'lucide-react' as per environment guidelines
 import {
-    FaSearch, FaSpinner, FaExclamationCircle, FaFileCsv, FaPrint,
-    FaCalendarWeek, FaCalendarAlt, FaChartLine, FaArrowUp, FaArrowDown
-} from "react-icons/fa";
+    Search, Loader2, AlertCircle, FileText, Printer,
+    CalendarRange, Calendar, LineChart, ArrowUp, ArrowDown
+} from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+// ✅ FIX: Removed CSS import from JS file, as it should be imported at the root of the application
+// import "react-toastify/dist/ReactToastify.css";
 
 // --- Constants ---
 const API_BASE_URI = "https://game-book.onrender.com";
@@ -55,6 +57,7 @@ const SummaryCard = ({ title, value, icon, color, loading }) => {
     );
 };
 
+// ✅ EDIT: Removed the arrow icon from this component
 const ProfitLossCard = ({ title, value, loading }) => {
     const isProfit = value >= 0;
     const bgColor = isProfit ? 'bg-green-50' : 'bg-red-50';
@@ -72,9 +75,7 @@ const ProfitLossCard = ({ title, value, loading }) => {
                         <p className={`text-3xl font-bold tracking-tight ${amountColor}`}>{formatCurrency(value)}</p>
                     )}
                 </div>
-                <div className={`text-4xl opacity-50 ${textColor}`}>
-                    {isProfit ? <FaArrowUp /> : <FaArrowDown />}
-                </div>
+                {/* Removed the icon div block */}
             </div>
         </div>
     );
@@ -127,7 +128,8 @@ const CustomerTable = ({ customers, loading, pageStartIndex }) => {
     }
 
     if (customers.length === 0) {
-        return <EmptyState icon={<FaSearch className="text-gray-400 text-2xl" />} title="No Customers Found" message="Try adjusting your search or filter criteria." />;
+        // Replaced icon
+        return <EmptyState icon={<Search className="text-gray-400 text-2xl" />} title="No Customers Found" message="Try adjusting your search or filter criteria." />;
     }
 
     return (
@@ -203,34 +205,37 @@ export default function ReportPage() {
         }
 
         try {
-            const headers = { Authorization: `Bearer ${token}` };
-            // Add a cache-busting timestamp to each URL to prevent 304 errors
-            const timestamp = Date.now();
-            const customerUrl = `${API_BASE_URI}/api/reports/customers/all-balances?_=${timestamp}`;
-            const weeklyUrl = `${API_BASE_URI}/api/reports/summary/weekly?_=${timestamp}`;
-            const monthlyUrl = `${API_BASE_URI}/api/reports/summary/monthly?_=${timestamp}`;
-            const yearlyUrl = `${API_BASE_URI}/api/reports/summary/yearly?_=${timestamp}`;
+            const cacheBust = `_=${new Date().getTime()}`;
+            const config = {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Expires': '0',
+                }
+            };
 
             const [customerRes, weeklyRes, monthlyRes, yearlyRes] = await Promise.all([
-                axios.get(customerUrl, { headers }),
-                axios.get(weeklyUrl, { headers }),
-                axios.get(monthlyUrl, { headers }),
-                axios.get(yearlyUrl, { headers }),
+                axios.get(`${API_BASE_URI}/api/reports/customers/all-balances?${cacheBust}`, config),
+                // ✅ FIX: Corrected typo 'cacheBBust' to 'cacheBust'
+                axios.get(`${API_BASE_URI}/api/reports/summary/weekly?${cacheBust}`, config),
+                axios.get(`${API_BASE_URI}/api/reports/summary/monthly?${cacheBust}`, config),
+                axios.get(`${API_BASE_URI}/api/reports/summary/yearly?${cacheBust}`, config),
             ]);
 
             setAllCustomers(customerRes.data);
             setSummary({
-                weekly: {
-                    income: weeklyRes.data.totalIncome || 0,
-                    profit: weeklyRes.data.totalProfit || 0
+                weekly: { 
+                    income: weeklyRes.data.totalIncome || 0, 
+                    profit: weeklyRes.data.totalProfit || 0 
                 },
-                monthly: {
-                    income: monthlyRes.data.totalIncome || 0,
-                    profit: monthlyRes.data.totalProfit || 0
+                monthly: { 
+                    income: monthlyRes.data.totalIncome || 0, 
+                    profit: monthlyRes.data.totalProfit || 0 
                 },
-                yearly: {
-                    income: yearlyRes.data.totalIncome || 0,
-                    profit: yearlyRes.data.totalProfit || 0
+                yearly: { 
+                    income: yearlyRes.data.totalIncome || 0, 
+                    profit: yearlyRes.data.totalProfit || 0 
                 },
             });
 
@@ -245,9 +250,31 @@ export default function ReportPage() {
         }
     }, [token]);
 
+    // ✅ FIX: Removed stray 'f' character that was causing a syntax error
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // ✅ ADD: Calculate total balance from all customers
+    const { netBalance } = useMemo(() => {
+        let yene = 0;
+        let dene = 0;
+        
+        allCustomers.forEach(c => {
+            const balance = c.latestBalance || 0;
+            if (balance > 0) {
+                yene += balance;
+            } else if (balance < 0) {
+                dene += Math.abs(balance);
+            }
+        });
+
+        return {
+            totalYene: yene,
+            totalDene: dene,
+            netBalance: yene - dene
+        };
+    }, [allCustomers]);
 
     const filteredCustomers = useMemo(() => {
         if (!debouncedSearch) return allCustomers;
@@ -294,7 +321,8 @@ export default function ReportPage() {
     if (error && allCustomers.length === 0) {
         return (
             <div className="bg-white rounded-2xl shadow-xl p-6 max-w-7xl mx-auto">
-                <EmptyState icon={<FaExclamationCircle className="text-red-500 text-3xl" />} title="Failed to Load Data" message={error} onRetry={fetchData} />
+                {/* Replaced icon */}
+                <EmptyState icon={<AlertCircle className="text-red-500 text-3xl" />} title="Failed to Load Data" message={error} onRetry={fetchData} />
             </div>
         );
     }
@@ -323,25 +351,30 @@ export default function ReportPage() {
                         <h1 className="text-3xl font-bold text-gray-800 mb-6">Reports Dashboard</h1>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4 print-hidden">
-                            <SummaryCard title="This Week's Income" value={summary.weekly.income} icon={<FaCalendarWeek />} color="purple" loading={summaryLoading} />
-                            <SummaryCard title="This Month's Income" value={summary.monthly.income} icon={<FaCalendarAlt />} color="blue" loading={summaryLoading} />
-                            <SummaryCard title="This Year's Income" value={summary.yearly.income} icon={<FaChartLine />} color="green" loading={summaryLoading} />
+                            {/* Replaced icons */}
+                            <SummaryCard title="This Week's Income" value={summary.weekly.income} icon={<CalendarRange />} color="purple" loading={summaryLoading} />
+                            <SummaryCard title="This Month's Income" value={summary.monthly.income} icon={<Calendar />} color="blue" loading={summaryLoading} />
+                            <SummaryCard title="This Year's Income" value={summary.yearly.income} icon={<LineChart />} color="green" loading={summaryLoading} />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print-hidden">
+                        {/* ✅ EDIT: Changed grid to 4 columns and added Net Balance card */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 print-hidden">
                              <ProfitLossCard title="Weekly Profit/Loss" value={summary.weekly.profit} loading={summaryLoading} />
                              <ProfitLossCard title="Monthly Profit/Loss" value={summary.monthly.profit} loading={summaryLoading} />
                              <ProfitLossCard title="Yearly Profit/Loss" value={summary.yearly.profit} loading={summaryLoading} />
+                             <ProfitLossCard title="Net Customer Balance" value={netBalance} loading={loading} />
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 print-hidden">
                             <div className="relative">
-                                <FaSearch className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
+                                {/* Replaced icon */}
+                                <Search className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
                                 <input type="text" placeholder="Search by name or Sr.No." value={search} onChange={(e) => setSearch(e.target.value)} className="border border-gray-300 rounded-lg py-2 pl-10 pr-4 w-full focus:outline-none focus:ring-2 focus:ring-purple-500" />
                             </div>
                             <div className="flex flex-wrap gap-2 justify-start md:justify-end">
-                                <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"><FaFileCsv /> Export CSV</button>
-                                <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"><FaPrint /> Print</button>
+                                {/* Replaced icons */}
+                                <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"><FileText /> Export CSV</button>
+                                <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"><Printer /> Print</button>
                             </div>
                         </div>
                         
@@ -349,6 +382,7 @@ export default function ReportPage() {
                             <CustomerTable customers={currentCustomersOnPage} loading={loading && allCustomers.length === 0} pageStartIndex={pageStartIndex} />
                         </div>
                         
+                        {/* This table is only for printing. It shows ALL customers. */}
                         <div className="hidden print:block">
                             <h2 className="text-xl font-semibold mb-2">All Customers Balance</h2>
                             <table className="min-w-full divide-y divide-gray-200">
@@ -384,3 +418,4 @@ export default function ReportPage() {
         </>
     );
 }
+
