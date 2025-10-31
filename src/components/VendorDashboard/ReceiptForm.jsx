@@ -108,16 +108,21 @@ const initialGameRows = [
   },
 ];
 
-const ReceiptForm = ({ businessName }) => {
+const initialOpenCloseValues = {
+  open: "",
+  close: "",
+  jod: "",
+};
+
+
+const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const [formData, setFormData] = useState(() =>
     getInitialFormData(businessName)
   );
   const [gameRows, setGameRows] = useState(initialGameRows);
-  const [openCloseValues, setOpenCloseValues] = useState({
-    open: "",
-    close: "",
-    jod: "",
-  });
+  const [openCloseValues, setOpenCloseValues] = useState(
+    initialOpenCloseValues
+  );
   const [customerList, setCustomerList] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -127,12 +132,12 @@ const ReceiptForm = ({ businessName }) => {
   const token = localStorage.getItem("token");
   const formRef = useRef(null);
 
+  // Clear button preserves openCloseValues
   const clearForm = useCallback(() => {
     setFormData((prevFormData) => getInitialFormData(prevFormData.businessName));
     setGameRows(initialGameRows);
-    setOpenCloseValues({ open: "", close: "", jod: "" });
     setSerialNumberInput("");
-  }, []);
+  }, [businessName]);
 
   const fetchCustomers = useCallback(async () => {
     if (!token) return;
@@ -155,6 +160,39 @@ const ReceiptForm = ({ businessName }) => {
       toast.error("Failed to fetch customer data.");
     }
   }, [token]);
+  
+  const fetchLatestOpenCloseValues = useCallback((allReceipts) => {
+    const todayStr = dayjs().format("YYYY-MM-DD");
+    const receiptsFromToday = allReceipts.filter(
+      (r) => dayjs(r.date).format("YYYY-MM-DD") === todayStr
+    );
+
+    let lastOpenClose = initialOpenCloseValues;
+    if (receiptsFromToday.length > 0) {
+        // Sort to find the absolute latest receipt of the day
+        receiptsFromToday.sort((a, b) => {
+            // Sort primarily by date (newest first)
+            const dateA = dayjs(a.date);
+            const dateB = dayjs(b.date);
+            const dateDiff = dateB.diff(dateA);
+            if (dateDiff !== 0) return dateDiff;
+            // Then by _id (as a tie-breaker for the latest entry)
+            if (b._id > a._id) return 1;
+            if (a._id < b._id) return -1;
+            return 0;
+        });
+        const latestReceiptOfTheDay = receiptsFromToday[0];
+
+        if (latestReceiptOfTheDay.openCloseValues) {
+            lastOpenClose = {
+                open: latestReceiptOfTheDay.openCloseValues.open || "",
+                close: latestReceiptOfTheDay.openCloseValues.close || "",
+                jod: latestReceiptOfTheDay.openCloseValues.jod || "",
+            };
+        }
+    }
+    return lastOpenClose;
+  }, []);
 
   const fetchReceipts = useCallback(async () => {
     if (!token) return;
@@ -162,11 +200,19 @@ const ReceiptForm = ({ businessName }) => {
       const response = await axios.get(`${API_BASE_URI}/api/receipts`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setReceipts(response.data.receipts || []);
+      const fetchedReceipts = response.data.receipts || [];
+      setReceipts(fetchedReceipts);
+      
+      // Load the latest Open/Close/Jod values on initial load only (when not editing)
+      if (!formData._id) {
+        const latestOpenClose = fetchLatestOpenCloseValues(fetchedReceipts);
+        setOpenCloseValues(latestOpenClose);
+      }
     } catch (error) {
       toast.error("Failed to load saved receipts.");
     }
-  }, [token]);
+  }, [token, formData._id, fetchLatestOpenCloseValues]);
+
 
   useEffect(() => {
     fetchCustomers();
@@ -183,35 +229,8 @@ const ReceiptForm = ({ businessName }) => {
     setSerialNumberInput(serial);
     const serialAsNumber = parseInt(serial, 10);
 
-    const todayStr = dayjs().format("YYYY-MM-DD");
-    const receiptsFromToday = receipts.filter(
-      (r) => dayjs(r.date, "DD-MM-YYYY").format("YYYY-MM-DD") === todayStr
-    );
-
-    let lastOpenClose = { open: "", close: "", jod: "" };
-    if (receiptsFromToday.length > 0) {
-      // ## UPDATED LOGIC ##
-      // Sort by date and then by _id to get the true latest receipt of the day
-      receiptsFromToday.sort((a, b) => {
-        const dateA = dayjs(a.date);
-        const dateB = dayjs(b.date);
-        const dateDiff = dateB.diff(dateA);
-        if (dateDiff !== 0) return dateDiff;
-        if (b._id > a._id) return 1;
-        if (a._id < b._id) return -1;
-        return 0;
-      });
-      const latestReceiptOfTheDay = receiptsFromToday[0];
-
-      if (latestReceiptOfTheDay.openCloseValues) {
-        lastOpenClose = {
-          open: latestReceiptOfTheDay.openCloseValues.open || "",
-          close: latestReceiptOfTheDay.openCloseValues.close || "",
-          jod: latestReceiptOfTheDay.openCloseValues.jod || "",
-        };
-      }
-    }
-    setOpenCloseValues(lastOpenClose);
+    // ************ FIX 1: Removed Open/Close/Jod logic from here ************
+    // The openCloseValues are now globally set on initial load/save/edit.
 
     if (
       !isNaN(serialAsNumber) &&
@@ -229,27 +248,24 @@ const ReceiptForm = ({ businessName }) => {
         let lastCuttingAmount = "";
 
         if (customerReceipts.length > 0) {
-          // ## UPDATED LOGIC ##
-          // Sort by date and then by _id to get the true latest receipt for the customer
           customerReceipts.sort((a, b) => {
             const dateA = dayjs(a.date);
             const dateB = dayjs(b.date);
             const dateDiff = dateB.diff(dateA);
             if (dateDiff !== 0) return dateDiff;
-            // If dates are the same, sort by MongoDB _id descending (newer first)
             if (b._id > a._id) return 1;
             if (a._id < b._id) return -1;
             return 0;
           });
           const latestReceipt = customerReceipts[0];
 
-          if (latestReceipt.finalTotalAfterChuk) {
+          if (latestReceipt.finalTotalAfterChuk !== undefined) {
             lastPendingAmount = latestReceipt.finalTotalAfterChuk.toString();
           }
-          if (latestReceipt.finalTotal) {
+          if (latestReceipt.finalTotal !== undefined) {
             lastAdvanceAmount = latestReceipt.finalTotal.toString();
           }
-          lastCuttingAmount = "";
+          lastCuttingAmount = latestReceipt.cuttingAmount?.toString() || "";
         }
 
         setFormData((prev) => ({
@@ -376,7 +392,8 @@ const ReceiptForm = ({ businessName }) => {
       koFinalTotal +
       panFinalTotal +
       gunFinalTotal;
-    const deduction = totalIncome * 0.1;
+    // NOTE: Deduction rate is hardcoded as 10% here.
+    const deduction = totalIncome * 0.1; 
     const afterDeduction = totalIncome - deduction;
     const remainingBalance = afterDeduction - payment;
     const pendingAmount = Number(formData.pendingAmount) || 0;
@@ -456,6 +473,12 @@ const ReceiptForm = ({ businessName }) => {
         setReceipts([res.data.receipt, ...receipts]);
         toast.success("Receipt saved successfully!");
       }
+      
+      // ************ FIX 2: Update the global O/C/J state with the CURRENT form values ************
+      // This ensures the Open/Close/Jod values persist correctly for the next receipt.
+      setOpenCloseValues(openCloseValues); 
+      // ************ END FIX 2 ************
+      
       if (clear) {
         clearForm();
       }
@@ -505,7 +528,7 @@ const ReceiptForm = ({ businessName }) => {
 
     setGameRows(sanitizedGameRows);
     setOpenCloseValues(
-      receipt.openCloseValues || { open: "", close: "", jod: "" }
+      receipt.openCloseValues || initialOpenCloseValues
     );
 
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -529,10 +552,14 @@ const ReceiptForm = ({ businessName }) => {
   const handlePrint = async () => {
     const savedSuccessfully = await handleSave(false);
     if (savedSuccessfully) {
-      window.print();
+      // Small timeout ensures save is processed and component re-renders
+      setTimeout(() => {
+         window.print();
+      }, 50);
     }
   };
 
+  // HandleShare function is kept as provided by the user in the last step
   const handleShare = async () => {
     const savedSuccessfully = await handleSave(false);
     if (!savedSuccessfully) {
@@ -547,42 +574,51 @@ const ReceiptForm = ({ businessName }) => {
     setIsSharing(true);
     toast.info("Generating image for sharing...");
 
+    // 1. Temporarily show the sharing-view and hide original
     printRef.current.classList.add("sharing-view");
-
-    try {
-      const dataUrl = await toJpeg(printRef.current, {
-        quality: 0.95,
-        backgroundColor: "#ffffff",
-      });
-
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const file = new File(
-        [blob],
-        `receipt-${formData.customerName}-${formData.date}.jpg`,
-        { type: "image/jpeg" }
-      );
-
-      if (navigator.share) {
-        await navigator.share({
-          title: "Receipt",
-          text: `Receipt for ${formData.customerName} on ${formData.date}`,
-          files: [file],
+    
+    // Use a small timeout to ensure all CSS changes are applied before capturing
+    setTimeout(async () => {
+      try {
+        const dataUrl = await toJpeg(printRef.current, {
+          quality: 0.95,
+          backgroundColor: "#ffffff",
+          // Set a static width/height for a reliable image capture size (mimics A4)
+          width: 800, 
         });
-      } else {
-        toast.warn("Web Share API is not supported in your browser.");
-        const link = document.createElement("a");
-        link.href = dataUrl;
-        link.download = `receipt-${formData.customerName}-${formData.date}.jpg`;
-        link.click();
+
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const file = new File(
+          [blob],
+          `receipt-${formData.customerName}-${formData.date}.jpg`,
+          { type: "image/jpeg" }
+        );
+
+        if (navigator.share) {
+          await navigator.share({
+            title: "Receipt",
+            text: `Receipt for ${formData.customerName} on ${formData.date}`,
+            files: [file],
+          });
+        } else {
+          toast.warn("Web Share API is not supported. Downloading image.");
+          const link = document.createElement("a");
+          link.href = dataUrl;
+          link.download = `receipt-${formData.customerName}-${formData.date}.jpg`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } catch (error) {
+        console.error("Sharing error:", error);
+        toast.error("Failed to share receipt. Check console for details.");
+      } finally {
+        // 2. Always remove the sharing-view class
+        printRef.current.classList.remove("sharing-view");
+        setIsSharing(false);
       }
-    } catch (error) {
-      console.error("Sharing error:", error);
-      toast.error("Failed to share receipt.");
-    } finally {
-      printRef.current.classList.remove("sharing-view");
-      setIsSharing(false);
-    }
+    }, 100); // 100ms delay
   };
 
   const handleTablePrint = (id) => {
@@ -596,16 +632,24 @@ const ReceiptForm = ({ businessName }) => {
     (r.customerName || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Helper to find the customer's srNo for print view
+  const getCustomerSrNo = (customerId) => {
+    const customer = customerList.find(c => c._id === customerId);
+    return customer ? customer.srNo : serialNumberInput || 'N/A';
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 p-2 sm:p-8 font-sans">
       <ToastContainer position="top-right" autoClose={3000} />
 
       <style>{`
+        /* --- Styles for perfect image sharing view --- */
         .sharing-view {
-          position: absolute !important;
-          left: 0;
-          top: 0;
-          z-index: -1;
+          position: fixed !important; 
+          left: -5000px !important; 
+          top: -5000px !important;
+          z-index: 9999 !important; 
+          opacity: 1 !important; 
           background: white !important;
           border: 2px solid black !important;
           box-shadow: none !important;
@@ -613,12 +657,22 @@ const ReceiptForm = ({ businessName }) => {
           padding: 0.5rem !important;
           font-size: 12px !important;
           font-weight: bold !important;
-          width: 8.27in;
-          overflow: hidden !important;
+          width: 800px !important; 
+          height: auto !important;
+          overflow: hidden !important; 
         }
+        
+        /* Force visibility/hidden logic to mimic @media print */
         .sharing-view .overflow-x-auto {
-            overflow: visible !important;
+            overflow: visible !important; 
         }
+        .sharing-view .print-hidden {
+          display: none !important; 
+        }
+        .sharing-view .hidden.print\\:inline { display: inline !important; }
+        .sharing-view .hidden.print\\:block { display: block !important; }
+
+        /* Style overrides to ensure print/share layout is tight and legible */
         .sharing-view h2 {
           font-size: 20px !important; margin: 0 0 0.25rem 0 !important;
           text-align: center !important; font-weight: bold !important;
@@ -686,12 +740,11 @@ const ReceiptForm = ({ businessName }) => {
         .sharing-view .bottom-box > div.flex > span.font-bold {
           flex: 1; text-align: right !important; width: auto !important;
         }
-        .sharing-view .print-hidden, .sharing-view #add-row-button, .sharing-view button {
+        .sharing-view #add-row-button, .sharing-view button {
           display: none !important;
         }
-        .sharing-view .hidden.print\\:inline { display: inline !important; }
-        .sharing-view .hidden.print\\:block { display: block !important; }
 
+        /* --- Original Print Styles (Unchanged for Print Output) --- */
         @media print {
           @page {
             size: A4;
@@ -808,6 +861,7 @@ const ReceiptForm = ({ businessName }) => {
           ref={printRef}
           className="printable-area p-4 border border-gray-400 rounded-lg"
         >
+          {/* Header Section */}
            <div className="header-section relative pb-4 mb-4">
              <div className="text-center">
                <h2 className="font-bold text-2xl">{formData.businessName}</h2>
@@ -833,6 +887,7 @@ const ReceiptForm = ({ businessName }) => {
                </div>
              </div>
 
+             {/* Open/Close/Jod Inputs (Print Hidden) */}
              <div className="values-section absolute top-0 right-0 p-2 space-y-1 border rounded-md bg-gray-50 print-hidden">
                <div className="flex items-center justify-between">
                  <span className="font-bold text-sm mr-2">Open:</span>
@@ -866,6 +921,7 @@ const ReceiptForm = ({ businessName }) => {
                </div>
              </div>
 
+             {/* Open/Close/Jod Display (Print Visible) */}
              <div className="values-section-print hidden">
                <div className="values-row">
                  <span>ओपन:</span>
@@ -881,13 +937,14 @@ const ReceiptForm = ({ businessName }) => {
                </div>
              </div>
 
+             {/* Date, Day, and Customer Info */}
              <div className="info-section mt-4">
                <div className="date-info">
                  <div>
                    वार:- <span className="font-semibold">{formData.day}</span>
                  </div>
                  <div>
-                   दि:- <span className="font-semibold">{formData.date}</span>
+                    दि:- <span className="font-semibold">{formData.date}</span>
                  </div>
                  <div className="mt-2">
                    <div className="print-hidden">
@@ -916,15 +973,20 @@ const ReceiptForm = ({ businessName }) => {
                        </div>
                      </div>
                    </div>
+                   
+                   {/* Display Serial Number in Print/Share View */}
                    <span className="hidden print:inline customer-info">
-                     <strong>Customer Name:</strong>{" "}
+                     <strong>S.No:</strong> {getCustomerSrNo(formData.customerId)} | 
+                     <strong> Customer Name:</strong>{" "}
                      {formData.customerName || "N/A"}
                    </span>
+                   
                  </div>
                </div>
              </div>
            </div>
 
+           {/* Game Rows Table */}
            <div className="overflow-x-auto">
              <table className="w-full text-sm table-fixed border-collapse">
                <colgroup>
@@ -968,11 +1030,11 @@ const ReceiptForm = ({ businessName }) => {
                            className="w-full text-right bg-white border border-gray-300 rounded-md p-1 text-sm mb-1 print-hidden"
                          />
                          <div className="hidden print:block w-full print:text-center print:border-b print:border-gray-400 print:pb-1 print:mb-1">
-                           {row[colName]}
+                           {row[colName] || "_"}
                          </div>
 
                          {hasMultiplier && (
-                           <span className="text-gray-500 whitespace-nowrap flex items-center justify-end print:justify-center">
+                           <span className="text-gray-500 whitespace-nowrap flex items-center justify-end print-hidden">
                              *{" "}
                              <input
                                type="number"
@@ -985,15 +1047,19 @@ const ReceiptForm = ({ businessName }) => {
                                      : e.target.value
                                  )
                                }
-                               className="w-8 text-center bg-transparent focus:outline-none print-hidden"
+                               className="w-8 text-center bg-transparent focus:outline-none"
                              />
-                             <span className="hidden print:inline">
-                               {effectiveMultiplier}
-                             </span>
                              <span className="ml-1">
                                = {cellTotal.toFixed(0)}
                              </span>
                            </span>
+                         )}
+                         
+                         {/* Print/Share View Total Multiplier */}
+                         {hasMultiplier && (
+                            <span className="hidden print:inline text-xs">
+                                * {effectiveMultiplier} = {cellTotal.toFixed(0)}
+                            </span>
                          )}
                        </div>
                      );
@@ -1005,23 +1071,28 @@ const ReceiptForm = ({ businessName }) => {
 
                    const panCell = (
                      <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                       <input
-                         type="number"
-                         name="panVal1"
-                         value={row.pan?.val1 || ""}
-                         onChange={(e) => handleRowChange(index, e)}
-                         className="w-10 text-center border border-gray-300 rounded p-0.5"
-                       />
-                       <span className="text-gray-600">×</span>
-                       <input
-                         type="number"
-                         name="panVal2"
-                         value={row.pan?.val2 || ""}
-                         onChange={(e) => handleRowChange(index, e)}
-                         className="w-10 text-center border border-gray-300 rounded p-0.5"
-                       />
-                       <span className="text-gray-600">=</span>
-                       <span className="text-xs">{panResult.toFixed(0)}</span>
+                        <div className="print-hidden flex items-center space-x-1">
+                            <input
+                              type="number"
+                              name="panVal1"
+                              value={row.pan?.val1 || ""}
+                              onChange={(e) => handleRowChange(index, e)}
+                              className="w-10 text-center border border-gray-300 rounded p-0.5"
+                            />
+                            <span className="text-gray-600">×</span>
+                            <input
+                              type="number"
+                              name="panVal2"
+                              value={row.pan?.val2 || ""}
+                              onChange={(e) => handleRowChange(index, e)}
+                              className="w-10 text-center border border-gray-300 rounded p-0.5"
+                            />
+                            <span className="text-gray-600">=</span>
+                            <span className="text-xs">{panResult.toFixed(0)}</span>
+                        </div>
+                        <div className="hidden print:block text-sm">
+                            {row.pan?.val1 || "_"} × {row.pan?.val2 || "_"} = {panResult.toFixed(0)}
+                        </div>
                      </div>
                    );
 
@@ -1031,23 +1102,28 @@ const ReceiptForm = ({ businessName }) => {
 
                    const gunCell = (
                      <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                       <input
-                         type="number"
-                         name="gunVal1"
-                         value={row.gun?.val1 || ""}
-                         onChange={(e) => handleRowChange(index, e)}
-                         className="w-10 text-center border border-gray-300 rounded p-0.5"
-                       />
-                       <span className="text-gray-600">×</span>
-                       <input
-                         type="number"
-                         name="gunVal2"
-                         value={row.gun?.val2 || ""}
-                         onChange={(e) => handleRowChange(index, e)}
-                         className="w-10 text-center border border-gray-300 rounded p-0.5"
-                       />
-                       <span className="text-gray-600">=</span>
-                       <span className="text-xs">{gunResult.toFixed(0)}</span>
+                        <div className="print-hidden flex items-center space-x-1">
+                            <input
+                              type="number"
+                              name="gunVal1"
+                              value={row.gun?.val1 || ""}
+                              onChange={(e) => handleRowChange(index, e)}
+                              className="w-10 text-center border border-gray-300 rounded p-0.5"
+                            />
+                            <span className="text-gray-600">×</span>
+                            <input
+                              type="number"
+                              name="gunVal2"
+                              value={row.gun?.val2 || ""}
+                              onChange={(e) => handleRowChange(index, e)}
+                              className="w-10 text-center border border-gray-300 rounded p-0.5"
+                            />
+                            <span className="text-gray-600">=</span>
+                            <span className="text-xs">{gunResult.toFixed(0)}</span>
+                        </div>
+                        <div className="hidden print:block text-sm">
+                            {row.gun?.val1 || "_"} × {row.gun?.val2 || "_"} = {gunResult.toFixed(0)}
+                        </div>
                      </div>
                    );
 
@@ -1091,8 +1167,9 @@ const ReceiptForm = ({ businessName }) => {
                              name="income"
                              value={row.income}
                              onChange={(e) => handleRowChange(index, e)}
-                             className="w-full text-right border border-gray-300 rounded p-1"
+                             className="w-full text-right border border-gray-300 rounded p-1 print-hidden"
                            />
+                           <span className="hidden print:block text-right">{row.income}</span>
                          </td>
                          <td className="border p-1">
                            {renderCellWithCalculation("o")}
@@ -1109,6 +1186,7 @@ const ReceiptForm = ({ businessName }) => {
                      );
                    }
                  })}
+                 {/* Summary Rows */}
                  <tr>
                    <td className="border p-2">टो.</td>
                    <td className="border p-2 text-right">
@@ -1152,8 +1230,9 @@ const ReceiptForm = ({ businessName }) => {
                        name="pendingAmount"
                        value={formData.pendingAmount}
                        onChange={handleChange}
-                       className="w-full text-right bg-white border-b p-1"
+                       className="w-full text-right bg-white border-b p-1 print-hidden"
                      />
+                     <span className="hidden print:block text-right">{formData.pendingAmount}</span>
                    </td>
                    <td colSpan="5" className="border p-2"></td>
                  </tr>
@@ -1201,6 +1280,7 @@ const ReceiptForm = ({ businessName }) => {
              </button>
            </div>
 
+           {/* Bottom Calculation Boxes */}
            <div className="flex flex-col sm:flex-row justify-between mt-4 bottom-box-container">
              <div className="w-full sm:w-1/2 sm:mr-2 mb-4 sm:mb-0 p-2 border rounded-md space-y-2 text-sm bottom-box">
                <div className="flex justify-between items-center">
@@ -1210,8 +1290,9 @@ const ReceiptForm = ({ businessName }) => {
                    name="jama"
                    value={formData.jama}
                    onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b"
+                   className="w-2/3 text-right bg-transparent border-b print-hidden"
                  />
+                 <span className="hidden print:inline font-bold">{formData.jama}</span>
                </div>
                <div className="flex justify-between">
                  <span>टो:-</span>
@@ -1226,8 +1307,9 @@ const ReceiptForm = ({ businessName }) => {
                    name="chuk"
                    value={formData.chuk}
                    onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b"
+                   className="w-2/3 text-right bg-transparent border-b print-hidden"
                  />
+                 <span className="hidden print:inline font-bold">{formData.chuk}</span>
                </div>
                <div className="flex justify-between">
                  <span>
@@ -1251,8 +1333,9 @@ const ReceiptForm = ({ businessName }) => {
                    name="advanceAmount"
                    value={formData.advanceAmount}
                    onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b"
+                   className="w-2/3 text-right bg-transparent border-b print-hidden"
                  />
+                 <span className="hidden print:inline font-bold">{formData.advanceAmount}</span>
                </div>
                <div className="flex justify-between items-center">
                  <span>कटिंग:-</span>
@@ -1261,8 +1344,9 @@ const ReceiptForm = ({ businessName }) => {
                    name="cuttingAmount"
                    value={formData.cuttingAmount}
                    onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b"
+                   className="w-2/3 text-right bg-transparent border-b print-hidden"
                  />
+                 <span className="hidden print:inline font-bold">{formData.cuttingAmount}</span>
                </div>
                <div className="flex justify-between">
                  <span>टो:-</span>
@@ -1274,6 +1358,7 @@ const ReceiptForm = ({ businessName }) => {
            </div>
         </div>
         
+        {/* Action Buttons (Print Hidden) */}
         <div className="print-hidden flex flex-wrap justify-center items-center mt-6 gap-4">
           <button
             onClick={() => handleSave(true)}
@@ -1305,6 +1390,7 @@ const ReceiptForm = ({ businessName }) => {
         </div>
       </div>
 
+      {/* Saved Receipts List (Print Hidden) */}
       <div className="print-hidden mt-8 max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
         <h2 className="text-2xl font-bold mb-4">Saved Receipts</h2>
         <input
