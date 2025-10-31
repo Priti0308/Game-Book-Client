@@ -80,6 +80,9 @@ const getInitialFormData = (businessName) => {
     cuttingAmount: "",
     jama: "",
     chuk: "",
+    // --- NEW: Editable Deduction Rate field ---
+    deductionRate: "10", // Default to 10%
+    // ------------------------------------------
   };
 };
 
@@ -228,9 +231,6 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     const serial = e.target.value;
     setSerialNumberInput(serial);
     const serialAsNumber = parseInt(serial, 10);
-
-    // ************ FIX 1: Removed Open/Close/Jod logic from here ************
-    // The openCloseValues are now globally set on initial load/save/edit.
 
     if (
       !isNaN(serialAsNumber) &&
@@ -392,8 +392,12 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       koFinalTotal +
       panFinalTotal +
       gunFinalTotal;
-    // NOTE: Deduction rate is hardcoded as 10% here.
-    const deduction = totalIncome * 0.1; 
+      
+    // --- UPDATED: Use editable deduction rate ---
+    const deductionRate = Number(formData.deductionRate) || 0;
+    const deduction = totalIncome * (deductionRate / 100); 
+    // --------------------------------------------
+    
     const afterDeduction = totalIncome - deduction;
     const remainingBalance = afterDeduction - payment;
     const pendingAmount = Number(formData.pendingAmount) || 0;
@@ -430,6 +434,9 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     formData.cuttingAmount,
     formData.jama,
     formData.chuk,
+    // --- NEW DEPENDENCY ---
+    formData.deductionRate,
+    // ----------------------
   ]);
 
   useEffect(() => {
@@ -474,10 +481,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         toast.success("Receipt saved successfully!");
       }
       
-      // ************ FIX 2: Update the global O/C/J state with the CURRENT form values ************
-      // This ensures the Open/Close/Jod values persist correctly for the next receipt.
+      // Update the global O/C/J state with the CURRENT form values
       setOpenCloseValues(openCloseValues); 
-      // ************ END FIX 2 ************
       
       if (clear) {
         clearForm();
@@ -524,6 +529,9 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       cuttingAmount: receipt.cuttingAmount?.toString() || "",
       jama: receipt.jama?.toString() || "",
       chuk: receipt.chuk?.toString() || "",
+      // --- NEW: Load deduction rate from saved receipt ---
+      deductionRate: receipt.deductionRate?.toString() || "10", 
+      // --------------------------------------------------
     });
 
     setGameRows(sanitizedGameRows);
@@ -559,7 +567,6 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     }
   };
 
-  // HandleShare function is kept as provided by the user in the last step
   const handleShare = async () => {
     const savedSuccessfully = await handleSave(false);
     if (!savedSuccessfully) {
@@ -637,6 +644,41 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     const customer = customerList.find(c => c._id === customerId);
     return customer ? customer.srNo : serialNumberInput || 'N/A';
   }
+
+  // Helper for rendering complex cells (unchanged from last version)
+  const renderComplexCell = (index, fieldName) => {
+    const row = gameRows[index];
+    const data = row[fieldName] || { val1: "", val2: "" };
+    const result = (Number(data.val1) || 0) * (Number(data.val2) || 0);
+
+    return (
+      <div className="flex items-center justify-center space-x-1 text-sm p-1">
+          <div className="print-hidden flex items-center space-x-1">
+              <input
+                type="number"
+                name={`${fieldName}Val1`}
+                value={data.val1 || ""}
+                onChange={(e) => handleRowChange(index, e)}
+                className="w-10 text-center border border-gray-300 rounded p-0.5"
+              />
+              <span className="text-gray-600">×</span>
+              <input
+                type="number"
+                name={`${fieldName}Val2`}
+                value={data.val2 || ""}
+                onChange={(e) => handleRowChange(index, e)}
+                className="w-10 text-center border border-gray-300 rounded p-0.5"
+              />
+              <span className="text-gray-600">=</span>
+              <span className="text-xs">{result.toFixed(0)}</span>
+          </div>
+          <div className="hidden print:block text-sm">
+              {data.val1 || "_"} × {data.val2 || "_"} = {result.toFixed(0)}
+          </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="min-h-screen bg-gray-100 p-2 sm:p-8 font-sans">
@@ -1065,67 +1107,9 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
                      );
                    };
 
-                   const panVal1 = Number(row.pan?.val1) || 0;
-                   const panVal2 = Number(row.pan?.val2) || 0;
-                   const panResult = panVal1 * panVal2;
+                   const panCell = renderComplexCell(index, "pan");
+                   const gunCell = renderComplexCell(index, "gun");
 
-                   const panCell = (
-                     <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                        <div className="print-hidden flex items-center space-x-1">
-                            <input
-                              type="number"
-                              name="panVal1"
-                              value={row.pan?.val1 || ""}
-                              onChange={(e) => handleRowChange(index, e)}
-                              className="w-10 text-center border border-gray-300 rounded p-0.5"
-                            />
-                            <span className="text-gray-600">×</span>
-                            <input
-                              type="number"
-                              name="panVal2"
-                              value={row.pan?.val2 || ""}
-                              onChange={(e) => handleRowChange(index, e)}
-                              className="w-10 text-center border border-gray-300 rounded p-0.5"
-                            />
-                            <span className="text-gray-600">=</span>
-                            <span className="text-xs">{panResult.toFixed(0)}</span>
-                        </div>
-                        <div className="hidden print:block text-sm">
-                            {row.pan?.val1 || "_"} × {row.pan?.val2 || "_"} = {panResult.toFixed(0)}
-                        </div>
-                     </div>
-                   );
-
-                   const gunVal1 = Number(row.gun?.val1) || 0;
-                   const gunVal2 = Number(row.gun?.val2) || 0;
-                   const gunResult = gunVal1 * gunVal2;
-
-                   const gunCell = (
-                     <div className="flex items-center justify-center space-x-1 text-sm p-1">
-                        <div className="print-hidden flex items-center space-x-1">
-                            <input
-                              type="number"
-                              name="gunVal1"
-                              value={row.gun?.val1 || ""}
-                              onChange={(e) => handleRowChange(index, e)}
-                              className="w-10 text-center border border-gray-300 rounded p-0.5"
-                            />
-                            <span className="text-gray-600">×</span>
-                            <input
-                              type="number"
-                              name="gunVal2"
-                              value={row.gun?.val2 || ""}
-                              onChange={(e) => handleRowChange(index, e)}
-                              className="w-10 text-center border border-gray-300 rounded p-0.5"
-                            />
-                            <span className="text-gray-600">=</span>
-                            <span className="text-xs">{gunResult.toFixed(0)}</span>
-                        </div>
-                        <div className="hidden print:block text-sm">
-                            {row.gun?.val1 || "_"} × {row.gun?.val2 || "_"} = {gunResult.toFixed(0)}
-                        </div>
-                     </div>
-                   );
 
                    if (row.type === "") {
                      return (
@@ -1197,7 +1181,23 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
                  <tr>
                    <td className="border p-2">क.</td>
                    <td className="border p-2 text-right">
-                     {calculationResults.deduction.toFixed(2)}
+                    {/* --- NEW/UPDATED: Editable Deduction Rate Input --- */}
+                    <div className="flex items-center justify-end print-hidden">
+                      <input
+                        type="number"
+                        name="deductionRate"
+                        value={formData.deductionRate}
+                        onChange={handleChange}
+                        className="w-10 text-right bg-white border-b p-1"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="ml-1">%</span>
+                    </div>
+                    {/* -------------------------------------------------- */}
+                    <span className="font-bold">
+                       {calculationResults.deduction.toFixed(2)}
+                    </span>
                    </td>
                    <td colSpan="5" className="border p-2"></td>
                  </tr>
