@@ -886,7 +886,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
     // NEW: Logic for Pan dropdown
     const isPan = fieldName === "pan";
-    const panType = isPan ? data.type || "sd" : "sd";
+    const panType = isPan ? data.type || "sp" : "sp";
 
     return (
       <div className="flex flex-col items-center justify-center space-y-1 text-sm p-1">
@@ -923,7 +923,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
               onChange={(e) => handleRowChange(index, e)} // Pass index
               className="border border-gray-300 rounded p-0.5 text-xs"
             >
-              <option value="sd">SD</option>
+              <option value="sd">Sp</option>
               <option value="dp">DP</option>
             </select>
           </div>
@@ -932,7 +932,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         {/* Updated print/share div */}
         <div className="hidden print:block text-sm">
           {data.val1 || "_"} × {data.val2 || "_"} = {result.toFixed(0)}
-          {/* --- NEW: Show SD/DP on print --- */}
+          {/* --- NEW: Show SP/DP on print --- */}
           {isPan && (
             <span className="text-xs font-normal">
               {" "}
@@ -1037,7 +1037,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const specialColumnHeader = useMemo(() => {
     if (globalSpecialType === "berij") return "बेरीज";
     if (globalSpecialType === "frak") return "फरक";
-    return "जॅकपॉट"; // Default
+    return "जॅकपॉट/बे/फ"; // Default
   }, [globalSpecialType]);
 
   return (
@@ -1369,7 +1369,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
                       ref={customerSearchRef}
                     >
                       <div className="flex items-center w-full">
-                        <strong className="mr-2">S.No:</strong>
+                        <strong className="mr-2">Sr.No:</strong>
                         <input
                           type="search"
                           placeholder="Search S.No or Name..."
@@ -1406,7 +1406,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
                   </div>
 
                   <span className="hidden print:inline customer-info">
-                    <strong>S.No:</strong>{" "}
+                    <strong>Sr.No:</strong>{" "}
                     {getCustomerSrNo(formData.customerId)} |
                     <strong> Customer Name:</strong>{" "}
                     {formData.customerName || "N/A"}
