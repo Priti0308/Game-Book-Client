@@ -406,7 +406,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       const field = name === "panVal1" ? "val1" : "val2";
       updatedRows[index].pan = { ...updatedRows[index].pan, [field]: value };
     } else if (name === "panType") {
-      // --- NEW: Handle Pan Type (SD/DP) change ---
+      // --- NEW: Handle Pan Type (SP/DP) change ---
       updatedRows[index].pan = { ...updatedRows[index].pan, type: value };
     } else if (name === "gunVal1" || name === "gunVal2") {
       const field = name === "gunVal1" ? "val1" : "val2";
@@ -449,7 +449,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         o: "",
         jod: "",
         ko: "",
-        pan: { val1: "", val2: "", type: "sd" }, // MODIFIED
+        pan: { val1: "", val2: "", type: "sp" }, // MODIFIED
         gun: { val1: "", val2: "" },
         special: { type: globalSpecialType, val1: "", val2: "" }, // MODIFIED
         multiplier: 8,
@@ -669,11 +669,11 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       (row) => {
         // --- Pan sanitization (simplified)
         const panData = row.pan;
-        let newPan = { val1: "", val2: "", type: "sd" }; // MODIFIED
+        let newPan = { val1: "", val2: "", type: "sp" }; // MODIFIED
         if (typeof panData === "object" && panData !== null) {
           newPan.val1 = panData.val1 || "";
           newPan.val2 = panData.val2 || "";
-          newPan.type = panData.type || "sd"; // MODIFIED: Ensure type exists
+          newPan.type = panData.type || "sp"; // MODIFIED: Ensure type exists
         } else if (typeof panData === "string") {
           newPan.val1 = panData; // Handle very old format
         }
