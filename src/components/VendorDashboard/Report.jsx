@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
-// ✅ FIX: Replaced 'react-icons/fa' with 'lucide-react' as per environment guidelines
 import {
     Search, Loader2, AlertCircle, FileText, Printer,
-    CalendarRange, Calendar, LineChart, ArrowUp, ArrowDown
+    CalendarRange, Calendar, LineChart
 } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
-// ✅ FIX: Removed CSS import from JS file, as it should be imported at the root of the application
-// import "react-toastify/dist/ReactToastify.css";
+// Note: "react-toastify/dist/ReactToastify.css" is assumed to be imported at the root (e.g., index.js or App.js)
 
 // --- Constants ---
 const API_BASE_URI = "https://game-book.onrender.com";
@@ -57,7 +55,6 @@ const SummaryCard = ({ title, value, icon, color, loading }) => {
     );
 };
 
-// ✅ EDIT: Removed the arrow icon from this component
 const ProfitLossCard = ({ title, value, loading }) => {
     const isProfit = value >= 0;
     const bgColor = isProfit ? 'bg-green-50' : 'bg-red-50';
@@ -75,7 +72,6 @@ const ProfitLossCard = ({ title, value, loading }) => {
                         <p className={`text-3xl font-bold tracking-tight ${amountColor}`}>{formatCurrency(value)}</p>
                     )}
                 </div>
-                {/* Removed the icon div block */}
             </div>
         </div>
     );
@@ -106,7 +102,8 @@ const EmptyState = ({ icon, title, message, onRetry }) => (
     </div>
 );
 
-const CustomerTable = ({ customers, loading, pageStartIndex }) => {
+// --- UPDATED: CustomerTable now accepts totalYene and totalDene ---
+const CustomerTable = ({ customers, loading, pageStartIndex, totalYene, totalDene }) => {
     if (loading) {
         return (
             <div className="overflow-x-auto border rounded-lg shadow">
@@ -128,7 +125,6 @@ const CustomerTable = ({ customers, loading, pageStartIndex }) => {
     }
 
     if (customers.length === 0) {
-        // Replaced icon
         return <EmptyState icon={<Search className="text-gray-400 text-2xl" />} title="No Customers Found" message="Try adjusting your search or filter criteria." />;
     }
 
@@ -159,6 +155,21 @@ const CustomerTable = ({ customers, loading, pageStartIndex }) => {
                         );
                     })}
                 </tbody>
+                {/* --- NEW: Added Table Footer for Totals --- */}
+                <tfoot className="bg-gray-100 sticky bottom-0 z-10 border-t-2 border-gray-300">
+                    <tr className="font-bold text-gray-900">
+                        <td className="p-3 text-left" colSpan="2">
+                            Total
+                        </td>
+                        <td className="p-3 text-right text-green-700">
+                            {formatCurrency(totalYene)}
+                        </td>
+                        <td className="p-3 text-right text-red-700">
+                            {formatCurrency(totalDene)}
+                        </td>
+                    </tr>
+                </tfoot>
+                {/* --- END NEW --- */}
             </table>
         </div>
     );
@@ -217,7 +228,6 @@ export default function ReportPage() {
 
             const [customerRes, weeklyRes, monthlyRes, yearlyRes] = await Promise.all([
                 axios.get(`${API_BASE_URI}/api/reports/customers/all-balances?${cacheBust}`, config),
-                // ✅ FIX: Corrected typo 'cacheBBust' to 'cacheBust'
                 axios.get(`${API_BASE_URI}/api/reports/summary/weekly?${cacheBust}`, config),
                 axios.get(`${API_BASE_URI}/api/reports/summary/monthly?${cacheBust}`, config),
                 axios.get(`${API_BASE_URI}/api/reports/summary/yearly?${cacheBust}`, config),
@@ -250,13 +260,12 @@ export default function ReportPage() {
         }
     }, [token]);
 
-    // ✅ FIX: Removed stray 'f' character that was causing a syntax error
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    // ✅ ADD: Calculate total balance from all customers
-    const { netBalance } = useMemo(() => {
+    // --- UPDATED: This useMemo now returns all total values ---
+    const { netBalance, totalYene, totalDene } = useMemo(() => {
         let yene = 0;
         let dene = 0;
         
@@ -297,6 +306,7 @@ export default function ReportPage() {
             toast.warn("No customer data to export.");
             return;
         }
+        // --- ADDED TOTALS ROW ---
         const headers = ["Sr.No.", "Name", "येणे (To Receive)", "देणे (To Give)"];
         const rows = allCustomers.map(c => {
             const finalTotal = c.latestBalance || 0;
@@ -304,6 +314,11 @@ export default function ReportPage() {
             const dene = finalTotal < 0 ? Math.abs(finalTotal) : 0;
             return [c.srNo || 'N/A', `"${c.name}"`, yene.toFixed(2), dene.toFixed(2)].join(',');
         });
+        
+        // Add the total row to the CSV
+        const totalRow = ["Total", "", totalYene.toFixed(2), totalDene.toFixed(2)].join(',');
+        rows.push(totalRow);
+        // --- END ADD ---
 
         const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows].join("\n");
         const encodedUri = encodeURI(csvContent);
@@ -321,7 +336,6 @@ export default function ReportPage() {
     if (error && allCustomers.length === 0) {
         return (
             <div className="bg-white rounded-2xl shadow-xl p-6 max-w-7xl mx-auto">
-                {/* Replaced icon */}
                 <EmptyState icon={<AlertCircle className="text-red-500 text-3xl" />} title="Failed to Load Data" message={error} onRetry={fetchData} />
             </div>
         );
@@ -329,20 +343,22 @@ export default function ReportPage() {
 
     return (
         <>
+            {/* --- FIXED: Completed the style block --- */}
             <style>{`
                 @media print {
-                  body * { visibility: hidden; }
-                  .printable-area, .printable-area * { visibility: visible; }
-                  .printable-area { position: absolute; left: 0; top: 0; width: 100%; }
-                  .print-hidden { display: none !important; }
-                  @page { size: auto; margin: 0.5in; }
-                  table { border-collapse: collapse !important; width: 100% !important; }
-                  th, td { border: 1px solid #ddd !important; padding: 8px !important; }
-                  thead { background-color: #f4f4f4 !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
-                  td.text-green-600 { color: #16a34a !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
-                  td.text-red-600 { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
+                    body * { visibility: hidden; }
+                    .printable-area, .printable-area * { visibility: visible; }
+                    .printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+                    .print-hidden { display: none !important; }
+                    @page { size: auto; margin: 0.5in; }
+                    table { border-collapse: collapse !important; width: 100% !important; }
+                    th, td { border: 1px solid #ddd !important; padding: 8px !important; }
+                    thead, tfoot { background-color: #f4f4f4 !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
+                    td.text-green-600, td.text-green-700 { color: #16a34a !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
+                    td.text-red-600, td.text-red-700 { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
                 }
             `}</style>
+            {/* --- END FIX --- */}
 
             <div className="bg-gray-50 min-h-full p-4 sm:p-6 lg:p-8">
                 <div className="bg-white rounded-2xl shadow-xl p-6 max-w-7xl mx-auto space-y-6">
@@ -351,13 +367,11 @@ export default function ReportPage() {
                         <h1 className="text-3xl font-bold text-gray-800 mb-6">Reports Dashboard</h1>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4 print-hidden">
-                            {/* Replaced icons */}
                             <SummaryCard title="This Week's Income" value={summary.weekly.income} icon={<CalendarRange />} color="purple" loading={summaryLoading} />
                             <SummaryCard title="This Month's Income" value={summary.monthly.income} icon={<Calendar />} color="blue" loading={summaryLoading} />
                             <SummaryCard title="This Year's Income" value={summary.yearly.income} icon={<LineChart />} color="green" loading={summaryLoading} />
                         </div>
 
-                        {/* ✅ EDIT: Changed grid to 4 columns and added Net Balance card */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 print-hidden">
                              <ProfitLossCard title="Weekly Profit/Loss" value={summary.weekly.profit} loading={summaryLoading} />
                              <ProfitLossCard title="Monthly Profit/Loss" value={summary.monthly.profit} loading={summaryLoading} />
@@ -367,19 +381,23 @@ export default function ReportPage() {
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 print-hidden">
                             <div className="relative">
-                                {/* Replaced icon */}
                                 <Search className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
                                 <input type="text" placeholder="Search by name or Sr.No." value={search} onChange={(e) => setSearch(e.target.value)} className="border border-gray-300 rounded-lg py-2 pl-10 pr-4 w-full focus:outline-none focus:ring-2 focus:ring-purple-500" />
                             </div>
                             <div className="flex flex-wrap gap-2 justify-start md:justify-end">
-                                {/* Replaced icons */}
                                 <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"><FileText /> Export CSV</button>
                                 <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"><Printer /> Print</button>
                             </div>
                         </div>
                         
                         <div className="print-hidden">
-                            <CustomerTable customers={currentCustomersOnPage} loading={loading && allCustomers.length === 0} pageStartIndex={pageStartIndex} />
+                            <CustomerTable 
+                                customers={currentCustomersOnPage} 
+                                loading={loading && allCustomers.length === 0} 
+                                pageStartIndex={pageStartIndex}
+                                totalYene={totalYene} 
+                                totalDene={totalDene}
+                            />
                         </div>
                         
                         {/* This table is only for printing. It shows ALL customers. */}
@@ -409,6 +427,19 @@ export default function ReportPage() {
                                         );
                                     })}
                                 </tbody>
+                                <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+                                    <tr className="font-bold text-gray-900">
+                                        <td className="p-3 text-left" colSpan="2">
+                                            Total
+                                        </td>
+                                        <td className="p-3 text-right text-green-700">
+                                            {formatCurrency(totalYene)}
+                                        </td>
+                                        <td className="p-3 text-right text-red-700">
+                                            {formatCurrency(totalDene)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                         <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
