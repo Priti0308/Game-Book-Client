@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { toast, ToastContainer } from 'react-toastify'; // Import ToastContainer
+import dayjs from 'dayjs'; // Import dayjs to check dates
+import { toast, ToastContainer } from 'react-toastify';
 import { FaSpinner, FaExclamationCircle, FaSave } from 'react-icons/fa';
-import 'react-toastify/dist/ReactToastify.css'; // Import CSS for react-toastify
+import 'react-toastify/dist/ReactToastify.css';
 
 const API_BASE_URI = "https://game-book.onrender.com"; // Your backend URL
 
@@ -14,36 +15,60 @@ const Shortcut = () => {
     const token = localStorage.getItem("token");
 
     useEffect(() => {
-        const fetchCustomers = async () => {
+        const fetchData = async () => {
             if (!token) {
                 setError("Authentication token not found. Please log in.");
                 setLoading(false);
                 return;
             }
             try {
+                setLoading(true);
                 const config = { headers: { Authorization: `Bearer ${token}` } };
-                const response = await axios.get(`${API_BASE_URI}/api/customers`, config);
-                const customerData = response.data.customers || response.data;
                 
+                // 1. Fetch both customers and all receipts in parallel
+                const [customerResponse, receiptResponse] = await Promise.all([
+                    axios.get(`${API_BASE_URI}/api/customers`, config),
+                    axios.get(`${API_BASE_URI}/api/receipts`, config)
+                ]);
+
+                const customerData = customerResponse.data.customers || customerResponse.data;
+                const allReceipts = receiptResponse.data.receipts || receiptResponse.data;
+
+                // 2. Filter receipts to find only today's receipts
+                const todayStr = dayjs().format("YYYY-MM-DD");
+                const todaysReceipts = allReceipts.filter(r => dayjs(r.date).format("YYYY-MM-DD") === todayStr);
+
+                // 3. Map over customers and merge data from today's receipts
                 const initialData = customerData
-                    // ✅ THIS LINE SORTS NUMERICALLY BY Sr.No.
-                    .sort((a, b) => Number(a.srNo) - Number(b.srNo)) 
-                    .map(customer => ({
-                        ...customer,
-                        aamdanIncome: '',
-                        kulanIncome: ''
-                    }));
+                    .sort((a, b) => Number(a.srNo) - Number(b.srNo))
+                    .map(customer => {
+                        // Find this customer's receipt for today, if one exists
+                        const receipt = todaysReceipts.find(r => r.customerId === customer._id);
+                        
+                        // Find the 'aamdan' (आ.) row from that receipt
+                        const aamdanRow = receipt?.gameRows?.find(row => row.type === "आ.");
+                        // Find the 'kulan' (कु.) row from that receipt
+                        const kulanRow = receipt?.gameRows?.find(row => row.type === "कु.");
+
+                        // Set the incomes, or '' if not found
+                        return {
+                            ...customer,
+                            aamdanIncome: aamdanRow?.income?.toString() || '',
+                            kulanIncome: kulanRow?.income?.toString() || ''
+                        };
+                    });
+                    
                 setCustomerIncomes(initialData);
 
             } catch (err) {
-                setError(err.response?.data?.message || "Failed to load customers.");
+                setError(err.response?.data?.message || "Failed to load data.");
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchCustomers();
-    }, [token]);
+        fetchData();
+    }, [token]); // This effect runs once on load
 
     const handleInputChange = (customerId, field, value) => {
         // Allow only numbers (or empty string for clearing)
@@ -75,17 +100,13 @@ const Shortcut = () => {
         setSaving(true);
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
+            // This endpoint is correct. Your backend will handle creating/updating the receipt.
             await axios.post(`${API_BASE_URI}/api/shortcuts/income`, dataToSave, config);
             toast.success("Incomes saved successfully!");
 
-            // Clear the input fields after successful save
-            setCustomerIncomes(prev =>
-                prev.map(customer => ({
-                    ...customer,
-                    aamdanIncome: '',
-                    kulanIncome: ''
-                }))
-            );
+            // We do NOT clear the fields, so the saved values remain visible
+            // as you requested.
+
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to save incomes.");
         } finally {
@@ -98,7 +119,6 @@ const Shortcut = () => {
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-full">
-            {/* Add ToastContainer here to display notifications */}
             <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
             <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6">
                 <h1 className="text-3xl font-bold text-gray-800 mb-6">Manual Income Entry</h1>
@@ -119,9 +139,9 @@ const Shortcut = () => {
                                     <td className="p-2 text-sm font-medium text-gray-900">{customer.name}</td>
                                     <td className="p-2">
                                         <input
-                                            type="text" // Use text to allow empty input
-                                            inputMode="numeric" // Helps mobile keyboards show numbers
-                                            pattern="[0-9]*" // Further restricts input (optional)
+                                            type="text" 
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
                                             value={customer.aamdanIncome}
                                             onChange={(e) => handleInputChange(customer._id, 'aamdanIncome', e.target.value)}
                                             className="w-full p-2 border rounded-md focus:ring-purple-500 focus:border-purple-500 text-right"

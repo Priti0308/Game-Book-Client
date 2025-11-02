@@ -80,13 +80,13 @@ const getInitialFormData = (businessName) => {
     cuttingAmount: "",
     jama: "",
     chuk: "",
-    // --- NEW: Editable Deduction Rate field ---
+    isChukEnabled: false, // For NA/LD checkbox
     deductionRate: "10", // Default to 10%
-    // ------------------------------------------
   };
 };
 
-const initialGameRows = [
+// --- UPDATED: Making a function to get a deep copy of initial rows ---
+const getInitialGameRows = () => [
   {
     id: 1,
     type: "आ.",
@@ -94,8 +94,9 @@ const initialGameRows = [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "" },
+    pan: { val1: "", val2: "", sp: false, dp: false },
     gun: { val1: "", val2: "" },
+    jackpot: { val1: "", val2: "" },
     multiplier: 8,
   },
   {
@@ -105,8 +106,9 @@ const initialGameRows = [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "" },
+    pan: { val1: "", val2: "", sp: false, dp: false },
     gun: { val1: "", val2: "" },
+    jackpot: { val1: "", val2: "" },
     multiplier: 9,
   },
 ];
@@ -117,30 +119,48 @@ const initialOpenCloseValues = {
   jod: "",
 };
 
+const initialNotationValues = {
+  berij: "",
+  frak: "",
+};
 
 const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const [formData, setFormData] = useState(() =>
     getInitialFormData(businessName)
   );
-  const [gameRows, setGameRows] = useState(initialGameRows);
+  const [gameRows, setGameRows] = useState(getInitialGameRows()); // Use the function
   const [openCloseValues, setOpenCloseValues] = useState(
     initialOpenCloseValues
+  );
+  const [notationValues, setNotationValues] = useState(
+    initialNotationValues
   );
   const [customerList, setCustomerList] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [serialNumberInput, setSerialNumberInput] = useState("");
   const [isSharing, setIsSharing] = useState(false);
+
+  // --- STATES FOR SEARCHABLE DROPDOWN ---
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const customerSearchRef = useRef(null); // Ref for click-outside
+
   const printRef = useRef();
   const token = localStorage.getItem("token");
   const formRef = useRef(null);
+  const isEditingRef = useRef(false);
 
   // Clear button preserves openCloseValues
   const clearForm = useCallback(() => {
     setFormData((prevFormData) => getInitialFormData(prevFormData.businessName));
-    setGameRows(initialGameRows);
+    setGameRows(getInitialGameRows()); // Use the function to reset
     setSerialNumberInput("");
-  }, [businessName]);
+    setCustomerSearch("");
+    setIsCustomerDropdownOpen(false);
+    setNotationValues(initialNotationValues);
+    // openCloseValues is intentionally not cleared
+  }, []);
 
   const fetchCustomers = useCallback(async () => {
     if (!token) return;
@@ -163,7 +183,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       toast.error("Failed to fetch customer data.");
     }
   }, [token]);
-  
+
   const fetchLatestOpenCloseValues = useCallback((allReceipts) => {
     const todayStr = dayjs().format("YYYY-MM-DD");
     const receiptsFromToday = allReceipts.filter(
@@ -172,27 +192,24 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
     let lastOpenClose = initialOpenCloseValues;
     if (receiptsFromToday.length > 0) {
-        // Sort to find the absolute latest receipt of the day
-        receiptsFromToday.sort((a, b) => {
-            // Sort primarily by date (newest first)
-            const dateA = dayjs(a.date);
-            const dateB = dayjs(b.date);
-            const dateDiff = dateB.diff(dateA);
-            if (dateDiff !== 0) return dateDiff;
-            // Then by _id (as a tie-breaker for the latest entry)
-            if (b._id > a._id) return 1;
-            if (a._id < b._id) return -1;
-            return 0;
-        });
-        const latestReceiptOfTheDay = receiptsFromToday[0];
+      receiptsFromToday.sort((a, b) => {
+        const dateA = dayjs(a.date);
+        const dateB = dayjs(b.date);
+        const dateDiff = dateB.diff(dateA);
+        if (dateDiff !== 0) return dateDiff;
+        if (b._id > a._id) return 1;
+        if (a._id < b._id) return -1;
+        return 0;
+      });
+      const latestReceiptOfTheDay = receiptsFromToday[0];
 
-        if (latestReceiptOfTheDay.openCloseValues) {
-            lastOpenClose = {
-                open: latestReceiptOfTheDay.openCloseValues.open || "",
-                close: latestReceiptOfTheDay.openCloseValues.close || "",
-                jod: latestReceiptOfTheDay.openCloseValues.jod || "",
-            };
-        }
+      if (latestReceiptOfTheDay.openCloseValues) {
+        lastOpenClose = {
+          open: latestReceiptOfTheDay.openCloseValues.open || "",
+          close: latestReceiptOfTheDay.openCloseValues.close || "",
+          jod: latestReceiptOfTheDay.openCloseValues.jod || "",
+        };
+      }
     }
     return lastOpenClose;
   }, []);
@@ -205,8 +222,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       });
       const fetchedReceipts = response.data.receipts || [];
       setReceipts(fetchedReceipts);
-      
-      // Load the latest Open/Close/Jod values on initial load only (when not editing)
+
       if (!formData._id) {
         const latestOpenClose = fetchLatestOpenCloseValues(fetchedReceipts);
         setOpenCloseValues(latestOpenClose);
@@ -216,26 +232,24 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     }
   }, [token, formData._id, fetchLatestOpenCloseValues]);
 
-
   useEffect(() => {
     fetchCustomers();
     fetchReceipts();
   }, [fetchCustomers, fetchReceipts]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSerialNumberChange = (e) => {
-    const serial = e.target.value;
-    setSerialNumberInput(serial);
+  // --- UPDATED: This useEffect now only loads INCOME for 'आ.' and 'कु.' ---
+  useEffect(() => {
+    const serial = serialNumberInput;
     const serialAsNumber = parseInt(serial, 10);
 
+    if (isEditingRef.current) {
+    isEditingRef.current = false; // Reset the flag and stop
+    return;
+  }
     if (
       !isNaN(serialAsNumber) &&
       serialAsNumber > 0 &&
-      serialAsNumber <= customerList.length
+      customerList.length > 0
     ) {
       const customer = customerList.find((c) => c.srNo === serialAsNumber);
       if (customer) {
@@ -246,6 +260,9 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         let lastPendingAmount = "";
         let lastAdvanceAmount = "";
         let lastCuttingAmount = "";
+        
+        // --- NEW LOGIC: Start with fresh initial rows ---
+        let newGameRows = getInitialGameRows(); // Get a fresh copy
 
         if (customerReceipts.length > 0) {
           customerReceipts.sort((a, b) => {
@@ -266,6 +283,23 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
             lastAdvanceAmount = latestReceipt.finalTotal.toString();
           }
           lastCuttingAmount = latestReceipt.cuttingAmount?.toString() || "";
+
+          // --- NEW: Find and apply only the 'income' values ---
+          if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
+            const lastAaRow = latestReceipt.gameRows.find(r => r.type === "आ.");
+            const lastKuRow = latestReceipt.gameRows.find(r => r.type === "कु.");
+
+            const aaIndex = newGameRows.findIndex(r => r.type === "आ.");
+            const kuIndex = newGameRows.findIndex(r => r.type === "कु.");
+
+            if (lastAaRow && aaIndex !== -1) {
+              newGameRows[aaIndex].income = lastAaRow.income;
+            }
+            if (lastKuRow && kuIndex !== -1) {
+              newGameRows[kuIndex].income = lastKuRow.income;
+            }
+          }
+          // --- END NEW LOGIC ---
         }
 
         setFormData((prev) => ({
@@ -276,8 +310,10 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           advanceAmount: lastAdvanceAmount,
           cuttingAmount: lastCuttingAmount,
         }));
+        setGameRows(newGameRows); // Set the updated game rows
       }
     } else {
+      // Clear form data if serial is invalid or empty
       setFormData((prev) => ({
         ...prev,
         customerId: "",
@@ -286,7 +322,46 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         advanceAmount: "",
         cuttingAmount: "",
       }));
+      setGameRows(getInitialGameRows()); // Reset game rows
     }
+  }, [serialNumberInput, customerList, receipts]); // Dependencies
+
+  // Click-outside handler for dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        customerSearchRef.current &&
+        !customerSearchRef.current.contains(event.target)
+      ) {
+        setIsCustomerDropdownOpen(false);
+        setCustomerSearch(""); // Clear search on click outside
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+
+    if (name === "isChukEnabled") {
+      setFormData((prev) => ({
+        ...prev,
+        isChukEnabled: checked,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleNotationChange = (e) => {
+    const { name, value } = e.target;
+    setNotationValues((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleOpenCloseChange = (e) => {
@@ -295,7 +370,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   };
 
   const handleRowChange = (index, e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     const updatedRows = [...gameRows];
 
     if (["o", "jod", "ko"].includes(name)) {
@@ -309,6 +384,15 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     } else if (name === "gunVal1" || name === "gunVal2") {
       const field = name === "gunVal1" ? "val1" : "val2";
       updatedRows[index].gun = { ...updatedRows[index].gun, [field]: value };
+    } else if (name === "jackpotVal1" || name === "jackpotVal2") {
+      const field = name === "jackpotVal1" ? "val1" : "val2";
+      updatedRows[index].jackpot = { ...updatedRows[index].jackpot, [field]: value };
+    } else if (name === "panSp" || name === "panDp") {
+      const field = name === "panSp" ? "sp" : "dp";
+      updatedRows[index].pan = {
+        ...updatedRows[index].pan,
+        [field]: checked,
+      };
     } else {
       updatedRows[index][name] = value;
     }
@@ -330,8 +414,9 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         o: "",
         jod: "",
         ko: "",
-        pan: { val1: "", val2: "" },
+        pan: { val1: "", val2: "", sp: false, dp: false },
         gun: { val1: "", val2: "" },
+        jackpot: { val1: "", val2: "" },
         multiplier: 8,
       };
       setGameRows([...gameRows, newRow]);
@@ -355,7 +440,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       jodFinalTotal = 0,
       koFinalTotal = 0,
       panFinalTotal = 0,
-      gunFinalTotal = 0;
+      gunFinalTotal = 0,
+      jackpotFinalTotal = 0;
 
     gameRows.forEach((row) => {
       const oVal = evaluateExpression(row.o);
@@ -380,6 +466,10 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       const gunVal1 = Number(row.gun?.val1) || 0;
       const gunVal2 = Number(row.gun?.val2) || 0;
       gunFinalTotal += gunVal1 * gunVal2;
+
+      const jackpotVal1 = Number(row.jackpot?.val1) || 0;
+      const jackpotVal2 = Number(row.jackpot?.val2) || 0;
+      jackpotFinalTotal += jackpotVal1 * jackpotVal2;
     });
 
     const totalIncome = gameRows.reduce(
@@ -391,19 +481,20 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       jodFinalTotal +
       koFinalTotal +
       panFinalTotal +
-      gunFinalTotal;
-      
-    // --- UPDATED: Use editable deduction rate ---
+      gunFinalTotal +
+      jackpotFinalTotal;
+
     const deductionRate = Number(formData.deductionRate) || 0;
-    const deduction = totalIncome * (deductionRate / 100); 
-    // --------------------------------------------
-    
+    const deduction = totalIncome * (deductionRate / 100);
     const afterDeduction = totalIncome - deduction;
     const remainingBalance = afterDeduction - payment;
     const pendingAmount = Number(formData.pendingAmount) || 0;
     const totalDue = remainingBalance + pendingAmount;
     const jama = Number(formData.jama) || 0;
-    const chuk = Number(formData.chuk) || 0;
+    
+    // Chuk amount is only applied if checkbox is checked
+    const chuk = formData.isChukEnabled ? (Number(formData.chuk) || 0) : 0;
+    
     const advanceAmount = Number(formData.advanceAmount) || 0;
     const cuttingAmount = Number(formData.cuttingAmount) || 0;
 
@@ -426,6 +517,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       koFinalTotal,
       panFinalTotal,
       gunFinalTotal,
+      jackpotFinalTotal,
     };
   }, [
     gameRows,
@@ -434,9 +526,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     formData.cuttingAmount,
     formData.jama,
     formData.chuk,
-    // --- NEW DEPENDENCY ---
+    formData.isChukEnabled,
     formData.deductionRate,
-    // ----------------------
   ]);
 
   useEffect(() => {
@@ -456,6 +547,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       ...formData,
       ...calculationResults,
       openCloseValues,
+      notationValues, 
       gameRows,
       date: dayjs(formData.date, "DD-MM-YYYY").toISOString(),
     };
@@ -480,10 +572,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         setReceipts([res.data.receipt, ...receipts]);
         toast.success("Receipt saved successfully!");
       }
-      
-      // Update the global O/C/J state with the CURRENT form values
-      setOpenCloseValues(openCloseValues); 
-      
+
       if (clear) {
         clearForm();
       }
@@ -496,25 +585,32 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   };
 
   const handleEdit = (id) => {
+    isEditingRef.current = true;
     const receipt = receipts.find((r) => r._id === id);
     if (!receipt) {
       toast.error("Could not find receipt to edit.");
       return;
     }
     const customer = customerList.find((c) => c._id === receipt.customerId);
-    setSerialNumberInput(customer ? customer.srNo.toString() : "");
 
-    const sanitizedGameRows = (receipt.gameRows || initialGameRows).map(
+    setSerialNumberInput(customer ? customer.srNo.toString() : "");
+    setCustomerSearch("");
+    setIsCustomerDropdownOpen(false);
+
+    const sanitizedGameRows = (receipt.gameRows || getInitialGameRows()).map(
       (row) => ({
         ...row,
         pan:
           typeof row.pan === "object"
-            ? row.pan
-            : { val1: row.pan || "", val2: "" },
+            ? { sp: false, dp: false, ...row.pan }
+            : { val1: row.pan || "", val2: "", sp: false, dp: false },
         gun: typeof row.gun === "object" ? row.gun : { val1: "", val2: "" },
+        jackpot: typeof row.jackpot === "object" ? row.jackpot : { val1: "", val2: "" },
       })
     );
+    
     const englishDay = dayjs(receipt.date).format("dddd");
+
     setFormData({
       _id: receipt._id,
       businessName: receipt.businessName || "Bappa Gaming",
@@ -529,14 +625,16 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       cuttingAmount: receipt.cuttingAmount?.toString() || "",
       jama: receipt.jama?.toString() || "",
       chuk: receipt.chuk?.toString() || "",
-      // --- NEW: Load deduction rate from saved receipt ---
-      deductionRate: receipt.deductionRate?.toString() || "10", 
-      // --------------------------------------------------
+      isChukEnabled: !!receipt.isChukEnabled,
+      deductionRate: receipt.deductionRate?.toString() || "10",
     });
 
     setGameRows(sanitizedGameRows);
-    setOpenCloseValues(
-      receipt.openCloseValues || initialOpenCloseValues
+    
+    // setOpenCloseValues is NOT called, to keep daily values persistent
+    
+    setNotationValues(
+      receipt.notationValues || initialNotationValues
     );
 
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -560,9 +658,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const handlePrint = async () => {
     const savedSuccessfully = await handleSave(false);
     if (savedSuccessfully) {
-      // Small timeout ensures save is processed and component re-renders
       setTimeout(() => {
-         window.print();
+        window.print();
       }, 50);
     }
   };
@@ -581,17 +678,14 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     setIsSharing(true);
     toast.info("Generating image for sharing...");
 
-    // 1. Temporarily show the sharing-view and hide original
     printRef.current.classList.add("sharing-view");
-    
-    // Use a small timeout to ensure all CSS changes are applied before capturing
+
     setTimeout(async () => {
       try {
         const dataUrl = await toJpeg(printRef.current, {
           quality: 0.95,
           backgroundColor: "#ffffff",
-          // Set a static width/height for a reliable image capture size (mimics A4)
-          width: 800, 
+          width: 800,
         });
 
         const res = await fetch(dataUrl);
@@ -621,7 +715,6 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         console.error("Sharing error:", error);
         toast.error("Failed to share receipt. Check console for details.");
       } finally {
-        // 2. Always remove the sharing-view class
         printRef.current.classList.remove("sharing-view");
         setIsSharing(false);
       }
@@ -639,59 +732,138 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     (r.customerName || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Helper to find the customer's srNo for print view
   const getCustomerSrNo = (customerId) => {
     const customer = customerList.find(c => c._id === customerId);
     return customer ? customer.srNo : serialNumberInput || 'N/A';
   }
 
-  // Helper for rendering complex cells (unchanged from last version)
   const renderComplexCell = (index, fieldName) => {
     const row = gameRows[index];
     const data = row[fieldName] || { val1: "", val2: "" };
     const result = (Number(data.val1) || 0) * (Number(data.val2) || 0);
 
+    // Logic to create the SP/DP text
+    let spDpText = "";
+    if (fieldName === "pan") {
+      if (data.sp && data.dp) {
+        spDpText = " (SP/DP)";
+      } else if (data.sp) {
+        spDpText = " (SP)";
+      } else if (data.dp) {
+        spDpText = " (DP)";
+      }
+    }
+
     return (
-      <div className="flex items-center justify-center space-x-1 text-sm p-1">
-          <div className="print-hidden flex items-center space-x-1">
+      <div className="flex flex-col items-center justify-center space-y-1 text-sm p-1">
+        <div className="print-hidden flex items-center space-x-1">
+          <input
+            type="number"
+            name={`${fieldName}Val1`}
+            value={data.val1 || ""}
+            onChange={(e) => handleRowChange(index, e)}
+            className="w-10 text-center border border-gray-300 rounded p-0.5"
+          />
+          <span className="text-gray-600">×</span>
+          <input
+            type="number"
+            name={`${fieldName}Val2`}
+            value={data.val2 || ""}
+            onChange={(e) => handleRowChange(index, e)}
+            className="w-10 text-center border border-gray-300 rounded p-0.5"
+          />
+          <span className="text-gray-600">=</span>
+          <span className="text-xs">{result.toFixed(0)}</span>
+        </div>
+        
+        {fieldName === "pan" && (
+          <div className="print-hidden flex justify-center space-x-4">
+            <label className="flex items-center text-xs">
               <input
-                type="number"
-                name={`${fieldName}Val1`}
-                value={data.val1 || ""}
+                type="checkbox"
+                name="panSp"
+                checked={data.sp || false}
                 onChange={(e) => handleRowChange(index, e)}
-                className="w-10 text-center border border-gray-300 rounded p-0.5"
+                className="mr-1"
               />
-              <span className="text-gray-600">×</span>
+              SP
+            </label>
+            <label className="flex items-center text-xs">
               <input
-                type="number"
-                name={`${fieldName}Val2`}
-                value={data.val2 || ""}
+                type="checkbox"
+                name="panDp"
+                checked={data.dp || false}
                 onChange={(e) => handleRowChange(index, e)}
-                className="w-10 text-center border border-gray-300 rounded p-0.5"
+                className="mr-1"
               />
-              <span className="text-gray-600">=</span>
-              <span className="text-xs">{result.toFixed(0)}</span>
+              DP
+            </label>
           </div>
-          <div className="hidden print:block text-sm">
-              {data.val1 || "_"} × {data.val2 || "_"} = {result.toFixed(0)}
-          </div>
+        )}
+        
+        {/* Updated print/share div */}
+        <div className="hidden print:block text-sm">
+          {data.val1 || "_"} × {data.val2 || "_"} = {result.toFixed(0)}
+          {/* This span will only appear if spDpText is not empty */}
+          {spDpText && <span className="text-xs font-normal">{spDpText}</span>} 
+        </div>
       </div>
     );
   };
 
+  // Filtered customer list for the dropdown
+  const filteredCustomerList = useMemo(() => {
+    return customerList.filter((customer) => {
+      const search = customerSearch.toLowerCase();
+      if (!search) return true; // Show all if search is empty
+      const nameMatch = customer.name.toLowerCase().includes(search);
+      const srNoMatch = customer.srNo.toString().includes(search);
+      return nameMatch || srNoMatch;
+    });
+  }, [customerSearch, customerList]);
+
+  // Handlers for the searchable input
+  const handleCustomerSearchChange = (e) => {
+    setCustomerSearch(e.target.value);
+    setIsCustomerDropdownOpen(true);
+    if (serialNumberInput) {
+      setSerialNumberInput("");
+    }
+  };
+
+  const handleCustomerSelect = (customer) => {
+    setSerialNumberInput(customer.srNo.toString());
+    setCustomerSearch("");
+    setIsCustomerDropdownOpen(false);
+  };
+
+  // Logic for the input's display value
+  const selectedCustomer = useMemo(
+    () => customerList.find((c) => c.srNo.toString() === serialNumberInput),
+    [serialNumberInput, customerList]
+  );
+  
+  const customerDisplayValue = isCustomerDropdownOpen
+    ? customerSearch
+    : selectedCustomer
+    ? `${selectedCustomer.srNo} - ${selectedCustomer.name}`
+    : customerSearch;
+
 
   return (
     <div className="min-h-screen bg-gray-100 p-2 sm:p-8 font-sans">
-      <ToastContainer position="top-right" autoClose={3000} />
+      {isSharing && (
+        <div className="fixed inset-0 bg-white z-50"></div>
+      )}
+      <ToastContainer position="top-right" autoClose={3000} style={{ zIndex: 99999 }} />
 
       <style>{`
-        /* --- Styles for perfect image sharing view --- */
         .sharing-view {
           position: fixed !important; 
-          left: -5000px !important; 
-          top: -5000px !important;
-          z-index: 9999 !important; 
-          opacity: 1 !important; 
+          top: 0 !important;
+          left: 0 !important;
+          z-index: 40 !important;
+          opacity: 1 !important;
           background: white !important;
           border: 2px solid black !important;
           box-shadow: none !important;
@@ -704,7 +876,6 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           overflow: hidden !important; 
         }
         
-        /* Force visibility/hidden logic to mimic @media print */
         .sharing-view .overflow-x-auto {
             overflow: visible !important; 
         }
@@ -714,7 +885,6 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         .sharing-view .hidden.print\\:inline { display: inline !important; }
         .sharing-view .hidden.print\\:block { display: block !important; }
 
-        /* Style overrides to ensure print/share layout is tight and legible */
         .sharing-view h2 {
           font-size: 20px !important; margin: 0 0 0.25rem 0 !important;
           text-align: center !important; font-weight: bold !important;
@@ -777,7 +947,10 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           justify-content: space-between !important;
           align-items: center !important;
         }
-        .sharing-view .bottom-box > div.flex > span:first-child { min-width: 90px; text-align: left !important; }
+        .sharing-view .bottom-box > div.flex > span:first-child,
+        .sharing-view .bottom-box > div.flex > div:first-child {
+          min-width: 90px; text-align: left !important;
+        }
         .sharing-view .bottom-box > div.flex > input,
         .sharing-view .bottom-box > div.flex > span.font-bold {
           flex: 1; text-align: right !important; width: auto !important;
@@ -785,8 +958,15 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         .sharing-view #add-row-button, .sharing-view button {
           display: none !important;
         }
+        
+        .sharing-view .berij-frak-row {
+          display: block !important;
+          text-align: center !important;
+          padding: 6px 4px !important;
+          border: 1px solid #000 !important;
+          border-top: none !important; /* It follows the table */
+        }
 
-        /* --- Original Print Styles (Unchanged for Print Output) --- */
         @media print {
           @page {
             size: A4;
@@ -870,10 +1050,11 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           }
           .printable-area .bottom-box > div.flex {
             display: flex !important;
-            justify-content: space-between !importanT;
+            justify-content: space-between !important;
             align-items: center !important;
           }
-          .printable-area .bottom-box > div.flex > span:first-child {
+          .printable-area .bottom-box > div.flex > span:first-child,
+          .printable-area .bottom-box > div.flex > div:first-child {
             min-width: 90px;
             text-align: left !important;
           }
@@ -886,6 +1067,16 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           #add-row-button, .printable-area button {
             display: none !important;
           }
+          
+          .printable-area .berij-frak-row {
+            display: block !important;
+            text-align: center !important;
+            font-weight: bold;
+            padding: 6px 4px !important;
+            border: 1px solid #000 !important;
+            border-top: none !important;
+          }
+          
         }
 
         input[type=number]::-webkit-inner-spin-button,
@@ -897,293 +1088,310 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       
       <div
         ref={formRef}
-        className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8"
+        className="max-w-5xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8"
       >
         <div
           ref={printRef}
           className="printable-area p-4 border border-gray-400 rounded-lg"
         >
           {/* Header Section */}
-           <div className="header-section relative pb-4 mb-4">
-             <div className="text-center">
-               <h2 className="font-bold text-2xl">{formData.businessName}</h2>
-               <div className="company-header">
-                 <span className="print-hidden">
-                   <select
-                     name="customerCompany"
-                     value={formData.customerCompany}
-                     onChange={handleChange}
-                     className="ml-2 bg-transparent border rounded p-1 text-sm"
-                   >
-                     <option value="">Choose Company...</option>
-                     {COMPANY_NAMES.map((company, index) => (
-                       <option key={index} value={company}>
-                         {company}
-                       </option>
-                     ))}
-                   </select>
-                 </span>
-                 <span className="hidden print:inline font-bold">
-                   Company Name : {formData.customerCompany || "N/A"}
-                 </span>
-               </div>
-             </div>
+            <div className="header-section relative pb-4 mb-4">
+              <div className="text-center">
+                <h2 className="font-bold text-2xl">{formData.businessName}</h2>
+                <div className="company-header">
+                  <span className="print-hidden">
+                    <select
+                      name="customerCompany"
+                      value={formData.customerCompany}
+                      onChange={handleChange}
+                      className="ml-2 bg-transparent border rounded p-1 text-sm"
+                    >
+                      <option value="">Choose Company...</option>
+                      {COMPANY_NAMES.map((company, index) => (
+                        <option key={index} value={company}>
+                          {company}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                  <span className="hidden print:inline font-bold">
+                    Company Name : {formData.customerCompany || "N/A"}
+                  </span>
+                </div>
+              </div>
 
-             {/* Open/Close/Jod Inputs (Print Hidden) */}
-             <div className="values-section absolute top-0 right-0 p-2 space-y-1 border rounded-md bg-gray-50 print-hidden">
-               <div className="flex items-center justify-between">
-                 <span className="font-bold text-sm mr-2">Open:</span>
-                 <input
-                   type="text"
-                   name="open"
-                   value={openCloseValues.open}
-                   onChange={handleOpenCloseChange}
-                   className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
-                 />
-               </div>
-               <div className="flex items-center justify-between">
-                 <span className="font-bold text-sm mr-2">Close:</span>
-                 <input
-                   type="text"
-                   name="close"
-                   value={openCloseValues.close}
-                   onChange={handleOpenCloseChange}
-                   className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
-                 />
-               </div>
-               <div className="flex items-center justify-between">
-                 <span className="font-bold text-sm mr-2">Jod:</span>
-                 <input
-                   type="text"
-                   name="jod"
-                   value={openCloseValues.jod}
-                   onChange={handleOpenCloseChange}
-                   className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
-                 />
-               </div>
-             </div>
+              {/* Open/Close/Jod Inputs (Print Hidden) */}
+              <div className="values-section absolute top-0 right-0 p-2 space-y-1 border rounded-md bg-gray-50 print-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm mr-2">Open:</span>
+                  <input
+                    type="text"
+                    name="open"
+                    value={openCloseValues.open}
+                    onChange={handleOpenCloseChange}
+                    className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm mr-2">Close:</span>
+                  <input
+                    type="text"
+                    name="close"
+                    value={openCloseValues.close}
+                    onChange={handleOpenCloseChange}
+                    className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm mr-2">Jod:</span>
+                  <input
+                    type="text"
+                    name="jod"
+                    value={openCloseValues.jod}
+                    onChange={handleOpenCloseChange}
+                    className="w-20 text-center border border-gray-300 rounded text-sm p-0.5"
+                  />
+                </div>
+              </div>
 
-             {/* Open/Close/Jod Display (Print Visible) */}
-             <div className="values-section-print hidden">
-               <div className="values-row">
-                 <span>ओपन:</span>
-                 <span>{openCloseValues.open || "___"}</span>
-               </div>
-               <div className="values-row">
-                 <span>क्लोज:</span>
-                 <span>{openCloseValues.close || "___"}</span>
-               </div>
-               <div className="values-row">
-                 <span>जोड:</span>
-                 <span>{openCloseValues.jod || "___"}</span>
-               </div>
-             </div>
+              {/* Open/Close/Jod Display (Print Visible) */}
+              <div className="values-section-print hidden">
+                <div className="values-row">
+                  <span>ओपन:</span>
+                  <span>{openCloseValues.open || "___"}</span>
+                </div>
+                <div className="values-row">
+                  <span>क्लोज:</span>
+                  <span>{openCloseValues.close || "___"}</span>
+                </div>
+                <div className="values-row">
+                  <span>जोड:</span>
+                  <span>{openCloseValues.jod || "___"}</span>
+                </div>
+              </div>
 
-             {/* Date, Day, and Customer Info */}
-             <div className="info-section mt-4">
-               <div className="date-info">
-                 <div>
-                   वार:- <span className="font-semibold">{formData.day}</span>
-                 </div>
-                 <div>
+              {/* Date, Day, and Customer Info */}
+              <div className="info-section mt-4">
+                <div className="date-info">
+                  <div>
+                    वार:- <span className="font-semibold">{formData.day}</span>
+                  </div>
+                  <div>
                     दि:- <span className="font-semibold">{formData.date}</span>
-                 </div>
-                 <div className="mt-2">
-                   <div className="print-hidden">
-                     <div className="flex flex-col items-start">
-                       <div className="flex items-center">
-                         <strong className="mr-2">S.No:</strong>
-                         <select
-                           value={serialNumberInput}
-                           onChange={handleSerialNumberChange}
-                           className="p-1 w-24 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                         >
-                           <option value="">Select No.</option>
-                           {customerList.map((customer) => (
-                             <option key={customer._id} value={customer.srNo}>
-                               {customer.srNo}
-                             </option>
-                           ))}
-                         </select>
-                       </div>
-                       <div className="mt-2 pl-1">
-                         <span className="font-bold text-black-700">
-                           {formData.customerName
-                             ? `Customer Name: ${formData.customerName}`
-                             : "No customer selected"}
-                         </span>
-                       </div>
-                     </div>
-                   </div>
-                   
-                   {/* Display Serial Number in Print/Share View */}
-                   <span className="hidden print:inline customer-info">
-                     <strong>S.No:</strong> {getCustomerSrNo(formData.customerId)} | 
-                     <strong> Customer Name:</strong>{" "}
-                     {formData.customerName || "N/A"}
-                   </span>
-                   
-                 </div>
-               </div>
-             </div>
-           </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="print-hidden">
+                      <div
+                        className="flex flex-col items-start relative w-64"
+                        ref={customerSearchRef}
+                      >
+                        <div className="flex items-center w-full">
+                          <strong className="mr-2">S.No:</strong>
+                          <input
+                            type="search"
+                            placeholder="Search S.No or Name..."
+                            value={customerDisplayValue}
+                            onChange={handleCustomerSearchChange}
+                            onFocus={() => setIsCustomerDropdownOpen(true)}
+                            className="p-1 flex-1 rounded-md border bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
 
-           {/* Game Rows Table */}
-           <div className="overflow-x-auto">
-             <table className="w-full text-sm table-fixed border-collapse">
-               <colgroup>
-                 <col style={{ width: "8%" }} />
-                 <col style={{ width: "12%" }} />
-                 <col style={{ width: "15%" }} />
-                 <col style={{ width: "15%" }} />
-                 <col style={{ width: "15%" }} />
-                 <col style={{ width: "18%" }} />
-                 <col style={{ width: "17%" }} />
-               </colgroup>
-               <thead>
-                 <tr className="bg-gray-100">
-                   <th className="border p-2 text-center">ओ.</th>
-                   <th className="border p-2 text-center">रक्कम</th>
-                   <th className="border p-2 text-center">ओ.</th>
-                   <th className="border p-2 text-center">जोड</th>
-                   <th className="border p-2 text-center">को.</th>
-                   <th className="border p-2 text-center">पान</th>
-                   <th className="border p-2 text-center">गुण</th>
-                 </tr>
-               </thead>
-               <tbody>
-                 {gameRows.map((row, index) => {
-                   const multiplier = row.multiplier;
-                   const hasMultiplier = multiplier !== undefined;
+                        {isCustomerDropdownOpen && filteredCustomerList.length > 0 && (
+                          <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-60 overflow-y-auto">
+                            {filteredCustomerList.map((customer) => (
+                              <div
+                                key={customer._id}
+                                className="p-2 hover:bg-gray-100 cursor-pointer"
+                                onClick={() => handleCustomerSelect(customer)}
+                              >
+                                {customer.srNo} - {customer.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <div className="mt-2 pl-1">
+                          <span className="font-bold text-black-700">
+                            {formData.customerName
+                              ? `Customer Name: ${formData.customerName}`
+                              : "No customer selected"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <span className="hidden print:inline customer-info">
+                      <strong>S.No:</strong> {getCustomerSrNo(formData.customerId)} | 
+                      <strong> Customer Name:</strong>{" "}
+                      {formData.customerName || "N/A"}
+                    </span>
+                    
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                   const renderCellWithCalculation = (colName) => {
-                     const effectiveMultiplier =
-                       colName === "jod" ? multiplier * 10 : multiplier;
-                     const cellTotal =
-                       evaluateExpression(row[colName]) * effectiveMultiplier;
+          {/* Game Rows Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm table-fixed border-collapse">
+              <colgroup>
+                <col style={{ width: "6%" }} />  {/* ओ. */}
+                <col style={{ width: "12%" }} /> {/* रक्कम */}
+                <col style={{ width: "13%" }} /> {/* ओ. */}
+                <col style={{ width: "13%" }} /> {/* जोड */}
+                <col style={{ width: "13%" }} /> {/* को. */}
+                <col style={{ width: "15%" }} /> {/* पान */}
+                <col style={{ width: "15%" }} /> {/* गुण */}
+                <col style={{ width: "13%" }} /> {/* जॅकपॉट */}
+              </colgroup>
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border p-2 text-center">ओ.</th>
+                  <th className="border p-2 text-center">रक्कम</th>
+                  <th className="border p-2 text-center">ओ.</th>
+                  <th className="border p-2 text-center">जोड</th>
+                  <th className="border p-2 text-center">को.</th>
+                  <th className="border p-2 text-center">पान</th>
+                  <th className="border p-2 text-center">गुण</th>
+                  <th className="border p-2 text-center">जॅकपॉट</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gameRows.map((row, index) => {
+                  const multiplier = row.multiplier;
+                  const hasMultiplier = multiplier !== undefined;
 
-                     return (
-                       <div className="flex flex-col items-end p-1">
-                         <input
-                           type="text"
-                           name={colName}
-                           value={row[colName]}
-                           onChange={(e) => handleRowChange(index, e)}
-                           className="w-full text-right bg-white border border-gray-300 rounded-md p-1 text-sm mb-1 print-hidden"
-                         />
-                         <div className="hidden print:block w-full print:text-center print:border-b print:border-gray-400 print:pb-1 print:mb-1">
-                           {row[colName] || "_"}
-                         </div>
+                  const renderCellWithCalculation = (colName) => {
+                    const effectiveMultiplier =
+                      colName === "jod" ? multiplier * 10 : multiplier;
+                    const cellTotal =
+                      evaluateExpression(row[colName]) * effectiveMultiplier;
 
-                         {hasMultiplier && (
-                           <span className="text-gray-500 whitespace-nowrap flex items-center justify-end print-hidden">
-                             *{" "}
-                             <input
-                               type="number"
-                               value={effectiveMultiplier}
-                               onChange={(e) =>
-                                 handleMultiplierChange(
-                                   index,
-                                   colName === "jod"
-                                     ? Number(e.target.value) / 10
-                                     : e.target.value
-                                 )
-                               }
-                               className="w-8 text-center bg-transparent focus:outline-none"
-                             />
-                             <span className="ml-1">
-                               = {cellTotal.toFixed(0)}
-                             </span>
-                           </span>
-                         )}
-                         
-                         {/* Print/Share View Total Multiplier */}
-                         {hasMultiplier && (
+                    return (
+                      <div className="flex flex-col items-end p-1">
+                        <input
+                          type="text"
+                          name={colName}
+                          value={row[colName]}
+                          onChange={(e) => handleRowChange(index, e)}
+                          className="w-full text-right bg-white border border-gray-300 rounded-md p-1 text-sm mb-1 print-hidden"
+                        />
+                        <div className="hidden print:block w-full print:text-center print:border-b print:border-gray-400 print:pb-1 print:mb-1">
+                          {row[colName] || "_"}
+                        </div>
+
+                        {hasMultiplier && (
+                          <span className="text-gray-500 whitespace-nowrap flex items-center justify-end print-hidden">
+                            *{" "}
+                            <input
+                              type="number"
+                              value={effectiveMultiplier}
+                              onChange={(e) =>
+                                handleMultiplierChange(
+                                  index,
+                                  colName === "jod"
+                                    ? Number(e.target.value) / 10
+                                    : e.target.value
+                                )
+                              }
+                              className="w-8 text-center bg-transparent focus:outline-none"
+                            />
+                            <span className="ml-1">
+                              = {cellTotal.toFixed(0)}
+                            </span>
+                          </span>
+                        )}
+                        
+                        {hasMultiplier && (
                             <span className="hidden print:inline text-xs">
                                 * {effectiveMultiplier} = {cellTotal.toFixed(0)}
                             </span>
-                         )}
-                       </div>
-                     );
-                   };
+                        )}
+                      </div>
+                    );
+                  };
 
-                   const panCell = renderComplexCell(index, "pan");
-                   const gunCell = renderComplexCell(index, "gun");
+                  const panCell = renderComplexCell(index, "pan");
+                  const gunCell = renderComplexCell(index, "gun");
+                  const jackpotCell = renderComplexCell(index, "jackpot");
 
 
-                   if (row.type === "") {
-                     return (
-                       <tr key={row.id}>
-                         <td
-                           colSpan="2"
-                           className="border-l border-r border-t border-b p-2"
-                         ></td>
-                         <td className="border border-l p-1">
-                           {renderCellWithCalculation("o")}
-                         </td>
-                         <td className="border border-l p-1">
-                           {renderCellWithCalculation("jod")}
-                         </td>
-                         <td className="border border-l p-1">
-                           {renderCellWithCalculation("ko")}
-                         </td>
-                         <td className="border border-l p-1">{panCell}</td>
-                         <td className="border border-l p-1">
-                           <div className="flex items-center justify-center">
-                             {gunCell}
-                             <button
-                               onClick={() => removeRow(index)}
-                               className="print-hidden text-red-500 hover:text-red-700 ml-1"
-                             >
-                               <FaMinus size={12} />
-                             </button>
-                           </div>
-                         </td>
-                       </tr>
-                     );
-                   } else {
-                     return (
-                       <tr key={row.id}>
-                         <td className="border p-2">{row.type}</td>
-                         <td className="border p-2">
-                           <input
-                             type="text"
-                             name="income"
-                             value={row.income}
-                             onChange={(e) => handleRowChange(index, e)}
-                             className="w-full text-right border border-gray-300 rounded p-1 print-hidden"
-                           />
-                           <span className="hidden print:block text-right">{row.income}</span>
-                         </td>
-                         <td className="border p-1">
-                           {renderCellWithCalculation("o")}
-                         </td>
-                         <td className="border p-1">
-                           {renderCellWithCalculation("jod")}
-                         </td>
-                         <td className="border p-1">
-                           {renderCellWithCalculation("ko")}
-                         </td>
-                         <td className="border p-1">{panCell}</td>
-                         <td className="border p-1">{gunCell}</td>
-                       </tr>
-                     );
-                   }
-                 })}
-                 {/* Summary Rows */}
-                 <tr>
-                   <td className="border p-2">टो.</td>
-                   <td className="border p-2 text-right">
-                     {calculationResults.totalIncome.toFixed(2)}
-                   </td>
-                   <td colSpan="5" className="border p-2"></td>
-                 </tr>
-                 <tr>
-                   <td className="border p-2">क.</td>
-                   <td className="border p-2 text-right">
-                    {/* --- NEW/UPDATED: Editable Deduction Rate Input --- */}
-                    <div className="flex items-center justify-end print-hidden">
-                      <input
+                  if (row.type === "") {
+                    return (
+                      <tr key={row.id}>
+                        <td
+                          colSpan="2"
+                          className="border-l border-r border-t border-b p-2"
+                        ></td>
+                        <td className="border border-l p-1">
+                          {renderCellWithCalculation("o")}
+                        </td>
+                        <td className="border border-l p-1">
+                          {renderCellWithCalculation("jod")}
+                        </td>
+                        <td className="border border-l p-1">
+                          {renderCellWithCalculation("ko")}
+                        </td>
+                        <td className="border border-l p-1">{panCell}</td>
+                        <td className="border border-l p-1">{gunCell}</td>
+                        <td className="border border-l p-1">
+                          <div className="flex items-center justify-center">
+                            {jackpotCell}
+                            <button
+                              onClick={() => removeRow(index)}
+                              className="print-hidden text-red-500 hover:text-red-700 ml-1"
+                            >
+                              <FaMinus size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  } else {
+                    return (
+                      <tr key={row.id}>
+                        <td className="border p-2">{row.type}</td>
+                        <td className="border p-2">
+                          <input
+                            type="text"
+                            name="income"
+                            value={row.income}
+                            onChange={(e) => handleRowChange(index, e)}
+                            className="w-full text-right border border-gray-300 rounded p-1 print-hidden"
+                          />
+                          <span className="hidden print:block text-right">{row.income}</span>
+                        </td>
+                        <td className="border p-1">
+                          {renderCellWithCalculation("o")}
+                        </td>
+                        <td className="border p-1">
+                          {renderCellWithCalculation("jod")}
+                        </td>
+                        <td className="border p-1">
+                          {renderCellWithCalculation("ko")}
+                        </td>
+                        <td className="border p-1">{panCell}</td>
+                        <td className="border p-1">{gunCell}</td>
+                        <td className="border p-1">{jackpotCell}</td>
+                      </tr>
+                    );
+                  }
+                })}
+              </tbody>
+              <tbody className="bg-gray-50">
+                <tr>
+                  <td className="border p-2">टो.</td>
+                  <td className="border p-2 text-right">
+                    {calculationResults.totalIncome.toFixed(2)}
+                  </td>
+                  <td colSpan="6" className="border p-2"></td>
+                </tr>
+                <tr>
+                  <td className="border p-2">क.</td>
+                  <td className="border p-2 text-right">
+                   <div className="flex items-center justify-end print-hidden">
+                     <input
                         type="number"
                         name="deductionRate"
                         value={formData.deductionRate}
@@ -1192,170 +1400,236 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
                         min="0"
                         max="100"
                       />
-                      <span className="ml-1">%</span>
-                    </div>
-                    {/* -------------------------------------------------- */}
+                     <span className="ml-1">%</span>
+                   </div>
                     <span className="font-bold">
-                       {calculationResults.deduction.toFixed(2)}
+                      {calculationResults.deduction.toFixed(2)}
                     </span>
-                   </td>
-                   <td colSpan="5" className="border p-2"></td>
-                 </tr>
-                 <tr>
-                   <td className="border p-2">टो.</td>
-                   <td className="border p-2 text-right">
-                     {calculationResults.afterDeduction.toFixed(2)}
-                   </td>
-                   <td colSpan="5" className="border p-2"></td>
-                 </tr>
-                 <tr>
-                   <td className="border p-2">पें.</td>
-                   <td className="border p-2 text-right">
-                     {calculationResults.payment.toFixed(2)}
-                   </td>
-                   <td colSpan="5" className="border p-2"></td>
-                 </tr>
-                 <tr>
-                   <td className="border p-2">टो.</td>
-                   <td className="border p-2 text-right">
-                     {calculationResults.remainingBalance.toFixed(2)}
-                   </td>
-                   <td colSpan="5" className="border p-2"></td>
-                 </tr>
-                 <tr>
-                   <td className="border p-2">मा.</td>
-                   <td className="border p-2">
-                     <input
-                       type="number"
-                       name="pendingAmount"
-                       value={formData.pendingAmount}
-                       onChange={handleChange}
-                       className="w-full text-right bg-white border-b p-1 print-hidden"
-                     />
-                     <span className="hidden print:block text-right">{formData.pendingAmount}</span>
-                   </td>
-                   <td colSpan="5" className="border p-2"></td>
-                 </tr>
-                 <tr>
-                   <td className="border p-2">टो.</td>
-                   <td className="border p-2 text-right">
-                     {calculationResults.totalDue.toFixed(2)}
-                   </td>
-                   <td colSpan="5" className="border p-2"></td>
-                 </tr>
-                 <tr className="bg-gray-50">
-                   <td
-                     colSpan="2"
-                     className="border p-2 font-bold text-right align-middle"
-                   >
-                     Total *
-                   </td>
-                   <td className="border p-2 font-medium text-right">
-                     {calculationResults.oFinalTotal.toFixed(2)}
-                   </td>
-                   <td className="border p-2 font-medium text-right">
-                     {calculationResults.jodFinalTotal.toFixed(2)}
-                   </td>
-                   <td className="border p-2 font-medium text-right">
-                     {calculationResults.koFinalTotal.toFixed(2)}
-                   </td>
-                   <td className="border p-2 font-medium text-right">
-                     {calculationResults.panFinalTotal.toFixed(2)}
-                   </td>
-                   <td className="border p-2 font-medium text-right">
-                     {calculationResults.gunFinalTotal.toFixed(2)}
-                   </td>
-                 </tr>
-               </tbody>
-             </table>
-           </div>
+                  </td>
+                  <td colSpan="6" className="border p-2"></td>
+                </tr>
+                <tr>
+                  <td className="border p-2">टो.</td>
+                  <td className="border p-2 text-right">
+                    {calculationResults.afterDeduction.toFixed(2)}
+                  </td>
+                  <td colSpan="6" className="border p-2"></td>
+                </tr>
+                <tr>
+                  <td className="border p-2">पें.</td>
+                  <td className="border p-2 text-right">
+                    {calculationResults.payment.toFixed(2)}
+                  </td>
+                  <td colSpan="6" className="border p-2"></td>
+                </tr>
+                <tr>
+                  <td className="border p-2">टो.</td>
+                  <td className="border p-2 text-right">
+                    {calculationResults.remainingBalance.toFixed(2)}
+                  </td>
+                  <td colSpan="6" className="border p-2"></td>
+                </tr>
+                <tr>
+                  <td className="border p-2">मा.</td>
+                  <td className="border p-2">
+                    <input
+                      type="number"
+                      name="pendingAmount"
+                      value={formData.pendingAmount}
+                      onChange={handleChange}
+                      className="w-full text-right bg-white border-b p-1 print-hidden"
+                    />
+                    <span className="hidden print:block text-right">{formData.pendingAmount}</span>
+                  </td>
+                  <td colSpan="6" className="border p-2"></td>
+                </tr>
+                <tr>
+                  <td className="border p-2">टो.</td>
+                  <td className="border p-2 text-right">
+                    {calculationResults.totalDue.toFixed(2)}
+                  </td>
+                  <td colSpan="6" className="border p-2"></td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td
+                    colSpan="2"
+                    className="border p-2 font-bold text-right align-middle"
+                  >
+                    Total *
+                  </td>
+                  <td className="border p-2 font-medium text-right">
+                    {calculationResults.oFinalTotal.toFixed(2)}
+                  </td>
+                  <td className="border p-2 font-medium text-right">
+                    {calculationResults.jodFinalTotal.toFixed(2)}
+                  </td>
+                  <td className="border p-2 font-medium text-right">
+                    {calculationResults.koFinalTotal.toFixed(2)}
+                  </td>
+                  <td className="border p-2 font-medium text-right">
+                    {calculationResults.panFinalTotal.toFixed(2)}
+                  </td>
+                  <td className="border p-2 font-medium text-right">
+                    {calculationResults.gunFinalTotal.toFixed(2)}
+                  </td>
+                  <td className="border p-2 font-medium text-right">
+                    {calculationResults.jackpotFinalTotal.toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Berij/Frak row for print/share view (shows notation) */}
+          <div className="berij-frak-row hidden print:block">
+            <span className="mr-8">
+              बेरीज: {notationValues.berij || "N/A"}
+            </span>
+            <span>
+              फरक: {notationValues.frak || "N/A"}
+            </span>
+          </div>
 
-           <div className="mt-2 flex justify-end">
-             <button
-               id="add-row-button"
-               onClick={addRow}
-               className="flex items-center px-3 py-1 bg-blue-500 text-white rounded-md shadow-sm hover:bg-blue-600 text-sm print-hidden"
-             >
-               <FaPlus size={12} className="mr-1" /> Add Row
-             </button>
-           </div>
+          {/* Berij/Frak inputs (notation only), opposite Add Row button */}
+          <div className="mt-2 flex flex-wrap justify-between items-center print-hidden">
+            {/* Berij/Frak Inputs (Notation Only) */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* Berij Input */}
+              <div className="flex items-center space-x-1">
+                <span className="font-bold text-sm">बेरीज:</span>
+                <input
+                  type="number"
+                  name="berij"
+                  value={notationValues.berij}
+                  onChange={handleNotationChange}
+                  className="w-24 text-right bg-white border border-gray-300 rounded p-1 text-sm"
+                  placeholder="Enter amount"
+                />
+              </div>
+              
+              {/* Frak Input */}
+              <div className="flex items-center space-x-1">
+                <span className="font-bold text-sm">फरक:</span>
+                <input
+                  type="number"
+                  name="frak"
+                  value={notationValues.frak}
+                  onChange={handleNotationChange}
+                  className="w-24 text-right bg-white border border-gray-300 rounded p-1 text-sm"
+                  placeholder="Enter amount"
+                />
+              </div>
+            </div>
+            
+            <button
+              id="add-row-button"
+              onClick={addRow}
+              className="flex items-center px-3 py-1 bg-blue-500 text-white rounded-md shadow-sm hover:bg-blue-600 text-sm"
+            >
+              <FaPlus size={12} className="mr-1" /> Add Row
+            </button>
+          </div>
 
-           {/* Bottom Calculation Boxes */}
-           <div className="flex flex-col sm:flex-row justify-between mt-4 bottom-box-container">
-             <div className="w-full sm:w-1/2 sm:mr-2 mb-4 sm:mb-0 p-2 border rounded-md space-y-2 text-sm bottom-box">
-               <div className="flex justify-between items-center">
-                 <span>जमा:-</span>
-                 <input
-                   type="number"
-                   name="jama"
-                   value={formData.jama}
-                   onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b print-hidden"
-                 />
-                 <span className="hidden print:inline font-bold">{formData.jama}</span>
-               </div>
-               <div className="flex justify-between">
-                 <span>टो:-</span>
-                 <span className="font-bold">
-                   {calculationResults.jamaTotal.toFixed(2)}
-                 </span>
-               </div>
-               <div className="flex justify-between items-center">
-                 <span>चूक:-</span>
-                 <input
-                   type="number"
-                   name="chuk"
-                   value={formData.chuk}
-                   onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b print-hidden"
-                 />
-                 <span className="hidden print:inline font-bold">{formData.chuk}</span>
-               </div>
-               <div className="flex justify-between">
-                 <span>
-                   {calculationResults.finalTotalAfterChuk < 0
-                     ? "देणे"
-                     : "येणे"}
-                   :-
-                 </span>
-                 <span className="font-bold">
-                   {Math.abs(
-                     calculationResults.finalTotalAfterChuk
-                   ).toFixed(2)}
-                 </span>
-               </div>
-             </div>
-             <div className="w-full sm:w-1/2 sm:ml-2 p-2 border rounded-md space-y-2 text-sm bottom-box">
-               <div className="flex justify-between items-center">
-                 <span>आड:-</span>
-                 <input
-                   type="number"
-                   name="advanceAmount"
-                   value={formData.advanceAmount}
-                   onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b print-hidden"
-                 />
-                 <span className="hidden print:inline font-bold">{formData.advanceAmount}</span>
-               </div>
-               <div className="flex justify-between items-center">
-                 <span>कटिंग:-</span>
-                 <input
-                   type="number"
-                   name="cuttingAmount"
-                   value={formData.cuttingAmount}
-                   onChange={handleChange}
-                   className="w-2/3 text-right bg-transparent border-b print-hidden"
-                 />
-                 <span className="hidden print:inline font-bold">{formData.cuttingAmount}</span>
-               </div>
-               <div className="flex justify-between">
-                 <span>टो:-</span>
-                 <span className="font-bold">
-                   {calculationResults.finalTotal.toFixed(2)}
-                 </span>
-               </div>
-             </div>
-           </div>
+          {/* Bottom Calculation Boxes */}
+          <div className="flex flex-col sm:flex-row justify-between mt-4 bottom-box-container">
+            <div className="w-full sm:w-1/2 sm:mr-2 mb-4 sm:mb-0 p-2 border rounded-md space-y-2 text-sm bottom-box">
+              <div className="flex justify-between items-center">
+                <span>जमा:-</span>
+                <input
+                  type="number"
+                  name="jama"
+                  value={formData.jama}
+                  onChange={handleChange}
+                  className="w-2/3 text-right bg-transparent border-b print-hidden"
+                />
+                <span className="hidden print:inline font-bold">{formData.jama}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>टो:-</span>
+                <span className="font-bold">
+                  {calculationResults.jamaTotal.toFixed(2)}
+                </span>
+              </div>
+              
+              {/* Chuk Section with NA/LD logic, input always enabled */}
+              <div className="flex justify-between items-center">
+                <div className="flex items-center print-hidden">
+                  <span className="mr-1">चूक:</span>
+                  <input
+                    type="checkbox"
+                    name="isChukEnabled"
+                    id="isChukEnabled"
+                    checked={formData.isChukEnabled}
+                    onChange={handleChange}
+                    className="mr-1"
+                  />
+                  <label htmlFor="isChukEnabled" className="text-xs">
+                    {formData.isChukEnabled ? "(LD)" : "(NA)"}
+                  </label>
+                </div>
+                <span className="hidden print:inline">
+                  चूक {formData.isChukEnabled ? "(LD)" : "(NA)"}:-
+                </span>
+                
+                <input
+                  type="number"
+                  name="chuk"
+                  value={formData.chuk}
+                  onChange={handleChange}
+                  // 'disabled' prop removed, input is always enabled
+                  className="w-2/3 text-right bg-transparent border-b print-hidden"
+                />
+                <span className="hidden print:inline font-bold">
+                  {/* Shows the entered value. Calculation is handled by 'isChukEnabled' state. */}
+                  {formData.chuk || 0}
+                </span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span>
+                  {calculationResults.finalTotalAfterChuk < 0
+                    ? "देणे"
+                    : "येणे"}
+                  :-
+                </span>
+                <span className="font-bold">
+                  {Math.abs(
+                    calculationResults.finalTotalAfterChuk
+                  ).toFixed(2)}
+                </span>
+              </div>
+            </div>
+            <div className="w-full sm:w-1/2 sm:ml-2 p-2 border rounded-md space-y-2 text-sm bottom-box">
+              <div className="flex justify-between items-center">
+                <span>आड:-</span>
+                <input
+                  type="number"
+                  name="advanceAmount"
+                  value={formData.advanceAmount}
+                  onChange={handleChange}
+                  className="w-2/3 text-right bg-transparent border-b print-hidden"
+                />
+                <span className="hidden print:inline font-bold">{formData.advanceAmount}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>कटिंग:-</span>
+                <input
+                  type="number"
+                  name="cuttingAmount"
+                  value={formData.cuttingAmount}
+                  onChange={handleChange}
+                  className="w-2/3 text-right bg-transparent border-b print-hidden"
+                />
+                <span className="hidden print:inline font-bold">{formData.cuttingAmount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>टो:-</span>
+                <span className="font-bold">
+                  {calculationResults.finalTotal.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
         
         {/* Action Buttons (Print Hidden) */}
@@ -1390,8 +1664,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         </div>
       </div>
 
-      {/* Saved Receipts List (Print Hidden) */}
-      <div className="print-hidden mt-8 max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
+      <div className="print-hidden mt-8 max-w-5xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
         <h2 className="text-2xl font-bold mb-4">Saved Receipts</h2>
         <input
           type="text"
