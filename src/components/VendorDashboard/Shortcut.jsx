@@ -40,7 +40,30 @@ const Shortcut = () => {
 
                 // 3. Map over customers and merge data from today's receipts
                 const initialData = customerData
-                    .sort((a, b) => Number(a.srNo) - Number(b.srNo))
+                    // --- THIS IS THE CORRECTED SORTING LOGIC ---
+                    .sort((a, b) => {
+                        const srA = Number(a.srNo);
+                        const srB = Number(b.srNo);
+
+                        // Check if values are valid, finite numbers
+                        const aIsNum = !isNaN(srA) && isFinite(srA);
+                        const bIsNum = !isNaN(srB) && isFinite(srB);
+
+                        if (aIsNum && bIsNum) {
+                            // Both are valid numbers, sort them
+                            return srA - srB;
+                        } else if (aIsNum) {
+                            // Only A is a number, so it comes first
+                            return -1;
+                        } else if (bIsNum) {
+                            // Only B is a number, so it comes first
+                            return 1;
+                        } else {
+                            // Neither is a valid number, keep their original order
+                            return 0;
+                        }
+                    })
+                    // --- END OF SORTING FIX ---
                     .map(customer => {
                         // Find this customer's receipt for today, if one exists
                         const receipt = todaysReceipts.find(r => r.customerId === customer._id);

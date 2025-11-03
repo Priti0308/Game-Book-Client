@@ -1037,7 +1037,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const specialColumnHeader = useMemo(() => {
     if (globalSpecialType === "berij") return "बेरीज";
     if (globalSpecialType === "frak") return "फरक";
-    return "जॅकपॉट/बे/फ"; // Default
+    // if (globalSpecialType === "frak") return "फरक";
+    return "जॅकपॉट"; // Default
   }, [globalSpecialType]);
 
   return (
