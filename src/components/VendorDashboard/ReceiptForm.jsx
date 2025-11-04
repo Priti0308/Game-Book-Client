@@ -1071,7 +1071,7 @@ const handleShare = async () => {
           box-shadow: none !important;
           margin: 0 !important;
           padding: 0.5rem !important;
-          font-size: 11px !important; 
+          font-size: 13px !important; /* Kept from last change */
           font-weight: bold !important;
           width: 1100px !important; 
           height: auto !important;
@@ -1088,7 +1088,7 @@ const handleShare = async () => {
         .sharing-view .hidden.print\\:block { display: block !important; }
 
         .sharing-view h2 {
-          font-size: 18px !important; 
+          font-size: 20px !important; /* Kept from last change */
           margin: 0 0 0.25rem 0 !important;
           text-align: center !important; font-weight: bold !important;
         }
@@ -1098,7 +1098,8 @@ const handleShare = async () => {
           position: relative !important;
         }
         .sharing-view .company-header {
-          text-align: center !important; font-size: 13px !important; 
+          text-align: center !important; 
+          font-size: 15px !important; /* Kept from last change */
           font-weight: bold !important; margin: 0.25rem 0 !important;
         }
         .sharing-view .info-section {
@@ -1111,7 +1112,6 @@ const handleShare = async () => {
           right: 0.5rem !important;
           border: none !important;
           padding: 0 !important;
-          font-size: 11px !important; 
         }
         .sharing-view .values-row {
           display: flex !important;
@@ -1127,25 +1127,27 @@ const handleShare = async () => {
           min-width: 0 !important;
         }
         .sharing-view table {
-          width: 100% !important; margin: 0.4rem 0 !important; 
+          width: 100% !important; 
+          margin: 0.2rem 0 !important; /* CHANGED from 0.4rem */
         }
         .sharing-view th, .sharing-view td {
-          padding: 5px 3px !important; 
+          padding: 6px 4px !important; /* CHANGED from 8px 4px */
           border: 1px solid #000 !important;
-          font-size: 11px !important; 
           vertical-align: middle !important;
           text-align: center;
         }
         .sharing-view td { text-align: right; }
         .sharing-view td:first-child { text-align: center; }
-        .sharing-view .bottom-box-container { margin-top: 0.5rem !important; } 
+        .sharing-view .bottom-box-container { 
+          margin-top: 0.2rem !important; /* CHANGED from 0.5rem */
+        } 
         .sharing-view .bottom-box {
           border: 1px solid #000 !important;
           padding: 7px !important; 
           font-weight: bold !important;
         }
         .sharing-view .bottom-box div {
-          font-size: 11px !important; 
+          /* inherits 13px */
         }
         .sharing-view .bottom-box > div.flex {
           display: flex !important;
@@ -1176,12 +1178,12 @@ const handleShare = async () => {
             border: 2px solid black !important;
             box-shadow: none !important; margin: 0;
             padding: 0.5rem !important;
-            font-size: 11px !important; 
+            font-size: 13px !important; /* Kept */
             font-weight: bold !important;
           }
           .print-hidden { display: none !important; }
           .printable-area h2 {
-            font-size: 18px !important; 
+            font-size: 20px !important; /* Kept */
             margin: 0 0 0.25rem 0 !important;
             text-align: center !important; font-weight: bold !important;
           }
@@ -1191,7 +1193,8 @@ const handleShare = async () => {
             position: relative !important;
           }
           .printable-area .company-header {
-            text-align: center !important; font-size: 13px !important; 
+            text-align: center !important; 
+            font-size: 15px !important; /* Kept */
             font-weight: bold !important; margin: 0.25rem 0 !important;
           }
           .printable-area .info-section {
@@ -1204,7 +1207,6 @@ const handleShare = async () => {
             right: 0.5rem !important;
             border: none !important;
             padding: 0 !important;
-            font-size: 11px !important; 
           }
           .printable-area .values-row {
             display: flex !important;
@@ -1220,12 +1222,12 @@ const handleShare = async () => {
             min-width: 0 !important;
           }
           .printable-area table {
-            width: 100% !important; margin: 0.4rem 0 !important; 
+            width: 100% !important; 
+            margin: 0.2rem 0 !important; /* CHANGED from 0.4rem */
           }
           .printable-area th, .printable-area td {
-            padding: 5px 3px !important; 
+            padding: 6px 4px !important; /* CHANGED from 8px 4px */
             border: 1px solid #000 !important;
-            font-size: 11px !important; 
             vertical-align: middle !important;
             text-align: center;
           }
@@ -1236,15 +1238,15 @@ const handleShare = async () => {
             text-align: center;
           }
           .printable-area .bottom-box-container {
-            margin-top: 0.5rem !important; 
-          }
+            margin-top: 0.2rem !important; /* CHANGED from 0.5rem */
+          } 
           .printable-area .bottom-box {
             border: 1px solid #000 !important;
             padding: 7px !important; 
             font-weight: bold !important;
           }
           .printable-area .bottom-box div {
-            font-size: 11px !important; 
+            /* inherits 13px */
           }
           .printable-area .bottom-box > div.flex {
             display: flex !important;
