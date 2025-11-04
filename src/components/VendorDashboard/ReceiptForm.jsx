@@ -251,7 +251,6 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     const serialAsNumber = parseInt(serial, 10);
 
     if (isEditingRef.current) {
-      isEditingRef.current = false; // Reset the flag and stop
       return;
     }
     if (
@@ -1000,6 +999,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
   // Handlers for the searchable input
   const handleCustomerSearchChange = (e) => {
+     isEditingRef.current = false;
     setCustomerSearch(e.target.value);
     setIsCustomerDropdownOpen(true);
     if (serialNumberInput) {
@@ -1008,6 +1008,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   };
 
   const handleCustomerSelect = (customer) => {
+    isEditingRef.current = false;
     setSerialNumberInput(customer.srNo.toString());
     setCustomerSearch("");
     setIsCustomerDropdownOpen(false);
