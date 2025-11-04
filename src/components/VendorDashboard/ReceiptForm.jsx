@@ -64,14 +64,15 @@ const getMarathiDay = (englishDay) => {
   return dayMap[englishDay] || englishDay;
 };
 
-const getInitialFormData = (businessName) => {
+// --- UPDATED: Now accepts customerCompany to preserve it on clear ---
+const getInitialFormData = (businessName, customerCompany = "") => {
   const currentDayInEnglish = dayjs().format("dddd");
   return {
     _id: null,
     businessName: businessName || "Bappa Gaming",
     customerId: "",
     customerName: "",
-    customerCompany: "",
+    customerCompany: customerCompany, // Use the passed-in value
     day: getMarathiDay(currentDayInEnglish),
     date: dayjs().format("DD-MM-YYYY"),
     payment: "",
@@ -153,9 +154,12 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const formRef = useRef(null);
   const isEditingRef = useRef(false);
 
-  // Clear button preserves openCloseValues
+  // --- UPDATED: Clear button now preserves company name ---
   const clearForm = useCallback(() => {
-    setFormData((prevFormData) => getInitialFormData(prevFormData.businessName));
+    setFormData((prevFormData) =>
+      // Pass the current businessName and customerCompany to preserve them
+      getInitialFormData(prevFormData.businessName, prevFormData.customerCompany)
+    );
     setGameRows(getInitialGameRows());
     setSerialNumberInput("");
     setCustomerSearch("");
@@ -164,7 +168,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     setIsSpecialDropdownOpen(false); // NEW: Close header dropdown
     isEditingRef.current = false;
     // openCloseValues is intentionally not cleared
-  }, []);
+  }, []); // No dependencies needed as setFormData provides the previous state
 
   const fetchCustomers = useCallback(async () => {
     if (!token) return;
@@ -241,7 +245,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     fetchReceipts();
   }, [fetchCustomers, fetchReceipts]);
 
-  // --- 'Maagil' Total Fix: Removed 'receipts' from dependency array
+  // --- UPDATED: This effect now ONLY loads pendingAmount and advanceAmount ---
   useEffect(() => {
     const serial = serialNumberInput;
     const serialAsNumber = parseInt(serial, 10);
@@ -264,9 +268,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
         let lastPendingAmount = "";
         let lastAdvanceAmount = "";
-        let lastCuttingAmount = "";
-
-        let newGameRows = getInitialGameRows(); // Start with fresh rows
+        // --- REMOVED: lastCuttingAmount
+        // --- REMOVED: newGameRows logic
 
         if (customerReceipts.length > 0) {
           // Sort receipts to find the most recent one
@@ -290,27 +293,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           if (latestReceipt.finalTotal !== undefined) {
             lastAdvanceAmount = latestReceipt.finalTotal.toString();
           }
-          lastCuttingAmount = latestReceipt.cuttingAmount?.toString() || "";
-
-          // Load 'income' values from the last receipt
-          if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
-            const lastAaRow = latestReceipt.gameRows.find(
-              (r) => r.type === "आ."
-            );
-            const lastKuRow = latestReceipt.gameRows.find(
-              (r) => r.type === "कु."
-            );
-
-            const aaIndex = newGameRows.findIndex((r) => r.type === "आ.");
-            const kuIndex = newGameRows.findIndex((r) => r.type === "कु.");
-
-            if (lastAaRow && aaIndex !== -1) {
-              newGameRows[aaIndex].income = lastAaRow.income;
-            }
-            if (lastKuRow && kuIndex !== -1) {
-              newGameRows[kuIndex].income = lastKuRow.income;
-            }
-          }
+          // --- REMOVED: Loading lastCuttingAmount
+          // --- REMOVED: Loading 'income' values
         }
 
         // Set the form data
@@ -318,15 +302,16 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           ...prev,
           customerId: customer._id,
           customerName: customer.name,
-          pendingAmount: lastPendingAmount,
-          advanceAmount: lastAdvanceAmount,
-          cuttingAmount: lastCuttingAmount,
+          pendingAmount: lastPendingAmount, // Keep
+          advanceAmount: lastAdvanceAmount, // Keep
+          cuttingAmount: "", // --- RESET
           jama: "", // --- CRITICAL FIX: Reset jama to empty ---
           chuk: "", // Reset chuk
           chukPercentage: "10", // Reset chuk percentage
           isChukEnabled: false, // Reset chuk checkbox
         }));
-        setGameRows(newGameRows);
+        // --- RESET: Use fresh game rows
+        setGameRows(getInitialGameRows());
       }
     } else {
       // Clear form data if serial is invalid or empty
@@ -345,7 +330,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       setGameRows(getInitialGameRows());
     }
     // This effect MUST only run when the customer changes, not when receipts list updates
-  }, [serialNumberInput, customerList]);
+  }, [serialNumberInput, customerList]); // Removed 'receipts' dependency
 
   // --- UPDATED: Click-outside handler for BOTH dropdowns ---
   useEffect(() => {
@@ -772,7 +757,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     }
   };
 
-const handleShare = async () => {
+  const handleShare = async () => {
     // 1. Check for ref (do this first)
     if (!printRef.current) {
       toast.error("Receipt element not found.");
@@ -850,6 +835,7 @@ const handleShare = async () => {
       setIsSharing(false);
     }
   };
+
   // --- UPDATED: Global Handler now takes a string value ---
   const handleGlobalSpecialTypeChange = (newType) => {
     setGlobalSpecialType(newType);
