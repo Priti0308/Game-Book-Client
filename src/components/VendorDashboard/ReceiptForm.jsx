@@ -772,8 +772,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     }
   };
 
-  const handleShare = async () => {
-    // 1. Check for ref
+const handleShare = async () => {
+    // 1. Check for ref (do this first)
     if (!printRef.current) {
       toast.error("Receipt element not found.");
       return;
@@ -781,69 +781,75 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
     // 2. Set loading state and *synchronously* update DOM for capture
     setIsSharing(true);
-    toast.info("Generating image for sharing...");
+    toast.info("Saving and generating image..."); // Updated toast
     printRef.current.classList.add("sharing-view");
 
-    let dataUrl, blob, file;
+    let dataUrl; // Declare dataUrl here to be accessible in fallback
 
     try {
-      // 3. Await image generation. This happens inside the click handler.
-      dataUrl = await toJpeg(printRef.current, {
+      // 3. Define the two concurrent promises
+      const savePromise = handleSave(false);
+      const imagePromise = toJpeg(printRef.current, {
         quality: 0.95,
         backgroundColor: "#ffffff",
-        width: 1100,
+        width: 1100, // Explicitly set width from your style
       });
 
+      // 4. Wait for BOTH promises to complete
+      const [savedSuccessfully, generatedDataUrl] = await Promise.all([
+        savePromise,
+        imagePromise,
+      ]);
+
+      // Store the generated URL for use in sharing or fallback
+      dataUrl = generatedDataUrl;
+
+      // 5. Check if the save operation failed
+      if (!savedSuccessfully) {
+        toast.error("Save failed. Cannot share receipt.");
+        // The 'finally' block will still run to clean up the UI
+        return;
+      }
+
+      // 6. Both save and image gen succeeded. Now, prepare the file.
       const res = await fetch(dataUrl);
-      blob = await res.blob();
-      file = new File(
+      const blob = await res.blob();
+      const file = new File(
         [blob],
         `receipt-${formData.customerName}-${formData.date}.jpg`,
         { type: "image/jpeg" }
       );
-    } catch (genError) {
-      console.error("Image generation error:", genError);
-      toast.error("Failed to generate image.");
-      printRef.current.classList.remove("sharing-view");
-      setIsSharing(false);
-      return;
-    } finally {
-      // 4. IMPORTANT: Clean up the DOM *before* calling share.
-      // This ensures the UI is reset even if the share dialog blocks.
-      printRef.current.classList.remove("sharing-view");
-    }
 
-    // 5. Try to share *immediately* after the file is ready
-    if (navigator.share && file) {
-      try {
+      // 7. Try to share (added check for navigator.canShare)
+      if (navigator.share && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: "Receipt",
           text: `Receipt for ${formData.customerName} on ${formData.date}`,
           files: [file],
         });
-        // Share was successful
-      } catch (shareError) {
-        // This will catch the "NotAllowedError" or if the user cancels
-        if (shareError.name !== "AbortError") {
-          console.error("Sharing error:", shareError);
-          toast.error("Failed to share: " + shareError.message);
-        }
+      } else {
+        // 8. Fallback (download)
+        toast.warn("Web Share not supported. Downloading image.");
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `receipt-${formData.customerName}-${formData.date}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
-    } else {
-      // Fallback for desktop or browsers that don't support file sharing
-      toast.warn("Web Share not supported. Downloading image.");
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `receipt-${formData.customerName}-${formData.date}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    } catch (error) {
+      // This will catch errors from save, image gen, OR sharing
+      console.error("Sharing or Save error:", error);
+      toast.error("Failed to save or share receipt.");
+    } finally {
+      // 9. ALWAYS clean up the UI
+      // This check is needed in case the component unmounted
+      if (printRef.current) {
+        printRef.current.classList.remove("sharing-view");
+      }
+      setIsSharing(false);
     }
-
-    // 6. Final state cleanup
-    setIsSharing(false);
   };
-
   // --- UPDATED: Global Handler now takes a string value ---
   const handleGlobalSpecialTypeChange = (newType) => {
     setGlobalSpecialType(newType);
