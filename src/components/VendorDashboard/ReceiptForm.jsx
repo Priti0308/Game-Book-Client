@@ -96,7 +96,7 @@ const getInitialGameRows = () => [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "", type: "sd" }, // MODIFIED
+    pan: { val1: "", val2: "", type: "sp" }, // MODIFIED
     gun: { val1: "", val2: "" },
     special: { type: "jackpot", val1: "", val2: "" }, // NEW
     multiplier: 8,
@@ -108,7 +108,7 @@ const getInitialGameRows = () => [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "", type: "sd" }, // MODIFIED
+    pan: { val1: "", val2: "", type: "sp" }, // MODIFIED
     gun: { val1: "", val2: "" },
     special: { type: "jackpot", val1: "", val2: "" }, // NEW
     multiplier: 9,
