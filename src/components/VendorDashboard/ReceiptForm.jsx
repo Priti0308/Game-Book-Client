@@ -96,7 +96,7 @@ const getInitialGameRows = () => [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "", type: "sp" }, // MODIFIED
+    pan: { val1: "", val2: "", type: "sd" }, // MODIFIED
     gun: { val1: "", val2: "" },
     special: { type: "jackpot", val1: "", val2: "" }, // NEW
     multiplier: 8,
@@ -108,7 +108,7 @@ const getInitialGameRows = () => [
     o: "",
     jod: "",
     ko: "",
-    pan: { val1: "", val2: "", type: "sp" }, // MODIFIED
+    pan: { val1: "", val2: "", type: "sd" }, // MODIFIED
     gun: { val1: "", val2: "" },
     special: { type: "jackpot", val1: "", val2: "" }, // NEW
     multiplier: 9,
@@ -132,7 +132,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const [customerList, setCustomerList] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  // --- NEW: State for company filter ---
+  // --- State for company filter ---
   const [companySearchTerm, setCompanySearchTerm] = useState("");
   const [serialNumberInput, setSerialNumberInput] = useState("");
   const [isSharing, setIsSharing] = useState(false);
@@ -906,9 +906,12 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     const customerNameMatch = (r.customerName || "")
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
-    const companyNameMatch = (r.customerCompany || "")
-      .toLowerCase()
-      .includes(companySearchTerm.toLowerCase());
+
+    // --- NEW: Company filter logic ---
+    const companyNameMatch = companySearchTerm // If a company is selected...
+      ? (r.customerCompany || "") === companySearchTerm // ...check for an exact match
+      : true; // ...otherwise, show all (true)
+
     return customerNameMatch && companyNameMatch;
   });
 
@@ -1941,7 +1944,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
       <div className="print-hidden mt-8 max-w-7xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
         <h2 className="text-2xl font-bold mb-4">Saved Receipts</h2>
-        {/* --- NEW: Search filter container --- */}
+        {/* --- MODIFIED: Search filter container --- */}
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <input
             type="text"
@@ -1950,13 +1953,19 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full sm:w-1/2 p-3 border border-gray-300 rounded-md"
           />
-          <input
-            type="text"
-            placeholder="Search by Company Name..."
+          {/* --- THIS IS THE NEW <select> --- */}
+          <select
             value={companySearchTerm}
             onChange={(e) => setCompanySearchTerm(e.target.value)}
-            className="w-full sm:w-1/2 p-3 border border-gray-300 rounded-md"
-          />
+            className="w-full sm:w-1/2 p-3 border border-gray-300 rounded-md bg-white"
+          >
+            <option value="">All Companies</option>
+            {COMPANY_NAMES.map((company, index) => (
+              <option key={index} value={company}>
+                {company}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
