@@ -154,6 +154,9 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const formRef = useRef(null);
   const isEditingRef = useRef(false);
 
+  // --- NEW: Ref to track previous serial number to prevent re-runs ---
+  const prevSerialNumberRef = useRef();
+
   // --- UPDATED: Clear button now preserves company name ---
   const clearForm = useCallback(() => {
     setFormData((prevFormData) =>
@@ -245,14 +248,21 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     fetchReceipts();
   }, [fetchCustomers, fetchReceipts]);
 
-  // --- UPDATED: This effect now ONLY loads pendingAmount and advanceAmount ---
+  // --- UPDATED: This effect now loads aa/ku AND magil/advance ---
   useEffect(() => {
+    // --- FIX: Only run if serialNumberInput *actually changes* ---
+    if (serialNumberInput === prevSerialNumberRef.current) {
+      return;
+    }
+    
     const serial = serialNumberInput;
     const serialAsNumber = parseInt(serial, 10);
 
     if (isEditingRef.current) {
+      prevSerialNumberRef.current = serialNumberInput; // Update ref even in edit mode
       return;
     }
+
     if (
       !isNaN(serialAsNumber) &&
       serialAsNumber > 0 &&
@@ -267,8 +277,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
         let lastPendingAmount = "";
         let lastAdvanceAmount = "";
-        // --- REMOVED: lastCuttingAmount
-        // --- REMOVED: newGameRows logic
+        // --- RE-ADDED: newGameRows logic ---
+        let newGameRows = getInitialGameRows(); // Start with fresh rows
 
         if (customerReceipts.length > 0) {
           // Sort receipts to find the most recent one
@@ -292,8 +302,26 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           if (latestReceipt.finalTotal !== undefined) {
             lastAdvanceAmount = latestReceipt.finalTotal.toString();
           }
-          // --- REMOVED: Loading lastCuttingAmount
-          // --- REMOVED: Loading 'income' values
+
+          // --- RE-ADDED: Load 'income' values from the last receipt ---
+          if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
+            const lastAaRow = latestReceipt.gameRows.find(
+              (r) => r.type === "आ."
+            );
+            const lastKuRow = latestReceipt.gameRows.find(
+              (r) => r.type === "कु."
+            );
+
+            const aaIndex = newGameRows.findIndex((r) => r.type === "आ.");
+            const kuIndex = newGameRows.findIndex((r) => r.type === "कु.");
+
+            if (lastAaRow && aaIndex !== -1) {
+              newGameRows[aaIndex].income = lastAaRow.income;
+            }
+            if (lastKuRow && kuIndex !== -1) {
+              newGameRows[kuIndex].income = lastKuRow.income;
+            }
+          }
         }
 
         // Set the form data
@@ -309,8 +337,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           chukPercentage: "10", // Reset chuk percentage
           isChukEnabled: false, // Reset chuk checkbox
         }));
-        // --- RESET: Use fresh game rows
-        setGameRows(getInitialGameRows());
+        // --- UPDATED: Use the new game rows ---
+        setGameRows(newGameRows);
       }
     } else {
       // Clear form data if serial is invalid or empty
@@ -328,8 +356,12 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       }));
       setGameRows(getInitialGameRows());
     }
-    // This effect MUST only run when the customer changes, not when receipts list updates
-  }, [serialNumberInput, customerList]); // Removed 'receipts' dependency
+
+    // --- FIX: Update the ref *after* logic runs ---
+    prevSerialNumberRef.current = serialNumberInput;
+    
+    // --- FIX: Add 'receipts' to dependency array ---
+  }, [serialNumberInput, customerList, receipts]);
 
   // --- UPDATED: Click-outside handler for BOTH dropdowns ---
   useEffect(() => {
@@ -494,7 +526,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     });
 
     const totalIncome = gameRows.reduce(
-      (sum, row) => sum + Number(row.income || 0),
+      (sum, row) => sum + (Number(row.income) || 0), // Use Number(row.income)
       0
     );
     // --- UPDATED: Payment calculation ---
@@ -999,7 +1031,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
   // Handlers for the searchable input
   const handleCustomerSearchChange = (e) => {
-     isEditingRef.current = false;
+    isEditingRef.current = false;
     setCustomerSearch(e.target.value);
     setIsCustomerDropdownOpen(true);
     if (serialNumberInput) {
