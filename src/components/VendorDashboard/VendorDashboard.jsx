@@ -25,7 +25,7 @@ import Report from "./Report";
 import "react-toastify/dist/ReactToastify.css";
 import ReceiptForm from "./ReceiptForm";
 import ViewReceipts from "./ViewReceipts";
-import Shortcut from "./Shortcut";
+// import Shortcut from "./Shortcut";
 
 // Define the base API URL
 const API_BASE_URI = "https://game-book.onrender.com";
@@ -55,7 +55,7 @@ const VendorDashboard = () => {
     { key: "createReceipt", label: "Create Receipt", icon: <FaFileInvoiceDollar /> },
     { key: "viewReceipts", label: "View Receipts", icon: <FaClipboardList /> },
     { key: "customers", label: "Customers", icon: <FaUser /> },
-     { key: "shortcut", label: "Shortcut", icon: <FaMagic /> },
+    //  { key: "shortcut", label: "Shortcut", icon: <FaMagic /> },
     { key: "reports", label: "Reports", icon: <FaCoins /> },
     { key: "logout", label: "Logout", icon: <FaSignOutAlt /> },
   ];
@@ -364,7 +364,7 @@ const VendorDashboard = () => {
         {currentSection === "customers" && <CustomerTab />}
         {currentSection === "createReceipt" && <ReceiptForm businessName={vendor?.businessName} />}
         {currentSection === "viewReceipts" && <ViewReceipts />}
-         {currentSection === "shortcut" && <Shortcut />}
+         {/* {currentSection === "shortcut" && <Shortcut />} */}
         {currentSection === "reports" && <Report />}
        
       </div>

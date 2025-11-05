@@ -304,24 +304,24 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           }
 
           // --- RE-ADDED: Load 'income' values from the last receipt ---
-          if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
-            const lastAaRow = latestReceipt.gameRows.find(
-              (r) => r.type === "आ."
-            );
-            const lastKuRow = latestReceipt.gameRows.find(
-              (r) => r.type === "कु."
-            );
+          // if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
+          //   const lastAaRow = latestReceipt.gameRows.find(
+          //     (r) => r.type === "आ."
+          //   );
+          //   const lastKuRow = latestReceipt.gameRows.find(
+          //     (r) => r.type === "कु."
+          //   );
 
-            const aaIndex = newGameRows.findIndex((r) => r.type === "आ.");
-            const kuIndex = newGameRows.findIndex((r) => r.type === "कु.");
+          //   const aaIndex = newGameRows.findIndex((r) => r.type === "आ.");
+          //   const kuIndex = newGameRows.findIndex((r) => r.type === "कु.");
 
-            if (lastAaRow && aaIndex !== -1) {
-              newGameRows[aaIndex].income = lastAaRow.income;
-            }
-            if (lastKuRow && kuIndex !== -1) {
-              newGameRows[kuIndex].income = lastKuRow.income;
-            }
-          }
+          //   if (lastAaRow && aaIndex !== -1) {
+          //     newGameRows[aaIndex].income = lastAaRow.income;
+          //   }
+          //   if (lastKuRow && kuIndex !== -1) {
+          //     newGameRows[kuIndex].income = lastKuRow.income;
+          //   }
+          // }
         }
 
         // Set the form data
