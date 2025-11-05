@@ -132,6 +132,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   const [customerList, setCustomerList] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  // --- NEW: State for company filter ---
+  const [companySearchTerm, setCompanySearchTerm] = useState("");
   const [serialNumberInput, setSerialNumberInput] = useState("");
   const [isSharing, setIsSharing] = useState(false);
 
@@ -784,56 +786,41 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     }
   };
 
+  // --- **** NEW, FIXED handleShare **** ---
   const handleShare = async () => {
-    // 1. Check for ref (do this first)
+    // 1. Check ref
     if (!printRef.current) {
       toast.error("Receipt element not found.");
       return;
     }
 
-    // 2. Set loading state and *synchronously* update DOM for capture
+    // 2. Set loading state & apply class
     setIsSharing(true);
-    toast.info("Saving and generating image..."); // Updated toast
+    toast.info("Generating image...");
     printRef.current.classList.add("sharing-view");
 
-    let dataUrl; // Declare dataUrl here to be accessible in fallback
+    let dataUrl;
+    let file;
 
+    // --- STAGE 1: Image Generation & Sharing ---
     try {
-      // 3. Define the two concurrent promises
-      // This calls handleSave, which now calls fetchReceipts (which sorts)
-      const savePromise = handleSave(false);
-      const imagePromise = toJpeg(printRef.current, {
+      // 3. Generate image
+      dataUrl = await toJpeg(printRef.current, {
         quality: 0.95,
         backgroundColor: "#ffffff",
-        width: 1100, // Explicitly set width from your style
+        width: 1100,
       });
 
-      // 4. Wait for BOTH promises to complete
-      const [savedSuccessfully, generatedDataUrl] = await Promise.all([
-        savePromise,
-        imagePromise,
-      ]);
-
-      // Store the generated URL for use in sharing or fallback
-      dataUrl = generatedDataUrl;
-
-      // 5. Check if the save operation failed
-      if (!savedSuccessfully) {
-        toast.error("Save failed. Cannot share receipt.");
-        // The 'finally' block will still run to clean up the UI
-        return;
-      }
-
-      // 6. Both save and image gen succeeded. Now, prepare the file.
+      // 4. Prepare file
       const res = await fetch(dataUrl);
       const blob = await res.blob();
-      const file = new File(
+      file = new File(
         [blob],
         `receipt-${formData.customerName}-${formData.date}.jpg`,
         { type: "image/jpeg" }
       );
 
-      // 7. Try to share (added check for navigator.canShare)
+      // 5. Attempt to share
       if (navigator.share && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: "Receipt",
@@ -841,7 +828,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           files: [file],
         });
       } else {
-        // 8. Fallback (download)
+        // 6. Fallback download
         toast.warn("Web Share not supported. Downloading image.");
         const link = document.createElement("a");
         link.href = dataUrl;
@@ -851,18 +838,43 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         document.body.removeChild(link);
       }
     } catch (error) {
-      // This will catch errors from save, image gen, OR sharing
-      console.error("Sharing or Save error:", error);
-      toast.error("Failed to save or share receipt.");
+      // This catch block now *only* handles errors from image gen or sharing
+      if (error.name === "AbortError") {
+        // User cancelled the share dialog. This is fine.
+        toast.info("Share cancelled.");
+      } else {
+        // A real error happened during image gen or share
+        console.error("Image/Share Error:", error);
+        toast.error("Failed to generate image for sharing.");
+
+        // Clean up and exit *before* trying to save
+        if (printRef.current) {
+          printRef.current.classList.remove("sharing-view");
+        }
+        setIsSharing(false);
+        return; // Don't proceed to save
+      }
+    }
+
+    // --- STAGE 2: Saving ---
+    // This part runs if Stage 1 succeeded OR if the user just cancelled the share.
+    // It does *not* run if Stage 1 had a *real* error.
+    try {
+      toast.info("Saving receipt...");
+      await handleSave(false);
+    } catch (saveError) {
+      console.error("Save Error after share:", saveError);
+      toast.error("Image was shared, but failed to save receipt.");
     } finally {
-      // 9. ALWAYS clean up the UI
-      // This check is needed in case the component unmounted
+      // --- STAGE 3: Cleanup ---
+      // This *always* runs
       if (printRef.current) {
         printRef.current.classList.remove("sharing-view");
       }
       setIsSharing(false);
     }
   };
+  // --- **** END of new handleShare **** ---
 
   // --- UPDATED: Global Handler now takes a string value ---
   const handleGlobalSpecialTypeChange = (newType) => {
@@ -889,9 +901,16 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     }, 200);
   };
 
-  const filteredReceipts = receipts.filter((r) =>
-    (r.customerName || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // --- MODIFIED: Filter logic now checks both search terms ---
+  const filteredReceipts = receipts.filter((r) => {
+    const customerNameMatch = (r.customerName || "")
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const companyNameMatch = (r.customerCompany || "")
+      .toLowerCase()
+      .includes(companySearchTerm.toLowerCase());
+    return customerNameMatch && companyNameMatch;
+  });
 
   const getCustomerSrNo = (customerId) => {
     const customer = customerList.find((c) => c._id === customerId);
@@ -1922,13 +1941,23 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
       <div className="print-hidden mt-8 max-w-7xl mx-auto bg-white rounded-lg shadow-xl p-4 sm:p-8">
         <h2 className="text-2xl font-bold mb-4">Saved Receipts</h2>
-        <input
-          type="text"
-          placeholder="Search Receipts by Customer Name..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full p-3 mb-4 border border-gray-300 rounded-md"
-        />
+        {/* --- NEW: Search filter container --- */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <input
+            type="text"
+            placeholder="Search Receipts by Customer Name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-1/2 p-3 border border-gray-300 rounded-md"
+          />
+          <input
+            type="text"
+            placeholder="Search by Company Name..."
+            value={companySearchTerm}
+            onChange={(e) => setCompanySearchTerm(e.target.value)}
+            className="w-full sm:w-1/2 p-3 border border-gray-300 rounded-md"
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
