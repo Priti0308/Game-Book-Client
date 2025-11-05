@@ -214,13 +214,13 @@ const PrintableReceipt = React.forwardRef(({ receiptData }, ref) => {
                     <td className="border p-1">
                       {renderCellWithCalculation(row, "ko")}
                     </td>
-                    <td className="border p-1">
+                    <td className="border border-l p-1">
                       {renderComplexCell(row.pan, "pan")}
                     </td>
-                    <td className="border p-1">
+                    <td className="border border-l p-1">
                       {renderComplexCell(row.gun, "gun")}
                     </td>
-                    <td className="border p-1">
+                    <td className="border border-l p-1">
                       {renderComplexCell(row.special, "special")}
                     </td>
                   </tr>
@@ -448,9 +448,8 @@ const ViewReceipts = () => {
   // --- THIS EDIT LOGIC IS CORRECT ---
   // Its job is to navigate to the form with the receipt's ID.
   // The ReceiptForm.jsx component is responsible for fetching the data using this ID.
-  // DO NOT copy the complex handleEdit logic from ReceiptForm.jsx here.
   const handleEdit = (receiptId) => {
-    navigate(`/vendor/create-receipt/${receiptId}`);
+    navigate(`/vendor/createReceipt/${receiptId}`);
   };
 
   const handlePrint = (receipt) => {
@@ -480,7 +479,11 @@ const ViewReceipts = () => {
     const searchTerm = search.toLowerCase();
     if (!searchTerm) return true; // Show all if search is empty
     const nameMatch = (receipt.customerName || "").toLowerCase().includes(searchTerm);
-    const srNoMatch = receipt.customerSrNo.toString().toLowerCase().includes(searchTerm);
+    
+    // --- *** MODIFICATION HERE *** ---
+    // Changed from .includes(searchTerm) to an exact match (===)
+    const srNoMatch = receipt.customerSrNo.toString() === searchTerm;
+    
     return nameMatch || srNoMatch;
   });
 
