@@ -16,7 +16,6 @@ import {
   FaMinus,
   FaShareAlt,
 } from "react-icons/fa";
-import { useParams } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
@@ -149,7 +148,6 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
   // --- NEW: Ref for header dropdown ---
   const specialHeaderRef = useRef(null);
-const { receiptId } = useParams();
 
   const printRef = useRef();
   const token = localStorage.getItem("token");
@@ -306,30 +304,29 @@ const { receiptId } = useParams();
           }
 
           // --- RE-ADDED: Load 'income' values from the last receipt ---
-          // if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
-          //   const lastAaRow = latestReceipt.gameRows.find(
-          //     (r) => r.type === "आ."
-          //   );
-          //   const lastKuRow = latestReceipt.gameRows.find(
-          //     (r) => r.type === "कु."
-          //   );
+          if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
+            const lastAaRow = latestReceipt.gameRows.find(
+              (r) => r.type === "आ."
+            );
+            const lastKuRow = latestReceipt.gameRows.find(
+              (r) => r.type === "कु."
+            );
 
-          //   const aaIndex = newGameRows.findIndex((r) => r.type === "आ.");
-          //   const kuIndex = newGameRows.findIndex((r) => r.type === "कु.");
+            const aaIndex = newGameRows.findIndex((r) => r.type === "आ.");
+            const kuIndex = newGameRows.findIndex((r) => r.type === "कु.");
 
-          //   if (lastAaRow && aaIndex !== -1) {
-          //     newGameRows[aaIndex].income = lastAaRow.income;
-          //   }
-          //   if (lastKuRow && kuIndex !== -1) {
-          //     newGameRows[kuIndex].income = lastKuRow.income;
-          //   }
-          // }
+            if (lastAaRow && aaIndex !== -1) {
+              newGameRows[aaIndex].income = lastAaRow.income;
+            }
+            if (lastKuRow && kuIndex !== -1) {
+              newGameRows[kuIndex].income = lastKuRow.income;
+            }
+          }
         }
 
         // Set the form data
         setFormData((prev) => ({
           ...prev,
-          _id: null, // <<< *** FIX: Ensure new customer always creates new receipt ***
           customerId: customer._id,
           customerName: customer.name,
           pendingAmount: lastPendingAmount, // Keep
@@ -347,7 +344,6 @@ const { receiptId } = useParams();
       // Clear form data if serial is invalid or empty
       setFormData((prev) => ({
         ...prev,
-        _id: null, // <<< *** FIX: Ensure empty form is always a new receipt ***
         customerId: "",
         customerName: "",
         pendingAmount: "",
@@ -896,23 +892,9 @@ const { receiptId } = useParams();
     }, 200);
   };
 
-  // --- MODIFIED: Updated filter logic to search by Sr.No. AND Name ---
-  const filteredReceipts = receipts.filter((r) => {
-    const search = searchTerm.toLowerCase();
-    if (!search) return true; // Show all if search is empty
-
-    // 1. Check name (partial match)
-    const nameMatch = (r.customerName || "").toLowerCase().includes(search);
-
-    // 2. Check Sr.No. (partial match)
-    // We need to find the customer from the customerList to get their srNo
-    const customer = customerList.find((c) => c._id === r.customerId);
-    const srNoString = customer ? customer.srNo.toString() : "";
-    const srNoMatch = srNoString.includes(search);
-
-    return nameMatch || srNoMatch;
-  });
-  // --- END OF MODIFICATION ---
+  const filteredReceipts = receipts.filter((r) =>
+    (r.customerName || "").toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const getCustomerSrNo = (customerId) => {
     const customer = customerList.find((c) => c._id === customerId);
@@ -1041,10 +1023,8 @@ const { receiptId } = useParams();
     return customerList.filter((customer) => {
       const search = customerSearch.toLowerCase();
       if (!search) return true; // Show all if search is empty
-
-      // --- *** FIX: Changed srNoMatch to be an exact match *** ---
       const nameMatch = customer.name.toLowerCase().includes(search);
-      const srNoMatch = customer.srNo.toString() === search; // Was .includes(search)
+      const srNoMatch = customer.srNo.toString().includes(search);
       return nameMatch || srNoMatch;
     });
   }, [customerSearch, customerList]);
@@ -1085,97 +1065,6 @@ const { receiptId } = useParams();
     // if (globalSpecialType === "frak") return "फरक";
     return "जॅकपॉट"; // Default
   }, [globalSpecialType]);
-
-  useEffect(() => {
-    // We only run this if there's a receiptId in the URL
-    if (receiptId) {
-      const fetchAndLoadReceipt = async () => {
-        try {
-          // Fetch the *single* receipt from your API
-          const res = await axios.get(
-            `${API_BASE_URI}/api/receipts/${receiptId}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          const receipt = res.data.receipt;
-          
-          if (receipt) {
-            // --- This is the logic from your old 'handleEdit' function ---
-            isEditingRef.current = true;
-            
-            // We need customerList for this part.
-            const customer = customerList.find(
-              (c) => c._id === receipt.customerId
-            );
-            
-            setSerialNumberInput(customer ? customer.srNo.toString() : "");
-            
-            // Sanitization logic (copied from your existing handleEdit)
-            const sanitizedGameRows = (receipt.gameRows || getInitialGameRows()).map(
-              (row) => {
-                const panData = row.pan;
-                let newPan = { val1: "", val2: "", type: "sp" };
-                if (typeof panData === "object" && panData !== null) {
-                  newPan.val1 = panData.val1 || "";
-                  newPan.val2 = panData.val2 || "";
-                  newPan.type = panData.type || "sp";
-                } else if (typeof panData === "string") {
-                  newPan.val1 = panData;
-                }
-                
-                let newSpecial = { type: "jackpot", val1: "", val2: "" };
-                if (row.special) newSpecial = row.special;
-                else if (row.jackpot) newSpecial = { type: "jackpot", val1: row.jackpot.val1 || "", val2: row.jackpot.val2 || "" };
-                else if (row.berij) newSpecial = { type: "berij", val1: row.berij.val1 || "", val2: row.berij.val2 || "" };
-                else if (row.frak) newSpecial = { type: "frak", val1: row.frak.val1 || "", val2: row.frak.val2 || "" };
-                
-                return {
-                  ...row,
-                  pan: newPan,
-                  gun: typeof row.gun === "object" ? row.gun : { val1: "", val2: "" },
-                  special: newSpecial,
-                  jackpot: undefined, berij: undefined, frak: undefined,
-                };
-              }
-            );
-            
-            const englishDay = dayjs(receipt.date).format("dddd");
-            setGlobalSpecialType(sanitizedGameRows[0]?.special?.type || "jackpot");
-            
-            setFormData({
-              _id: receipt._id,
-              businessName: receipt.businessName || "Bappa Gaming",
-              customerId: receipt.customerId,
-              customerName: customer?.name || receipt.customerName,
-              customerCompany: receipt.customerCompany || "",
-              day: getMarathiDay(englishDay),
-              date: dayjs(receipt.date).format("DD-MM-YYYY"),
-              payment: receipt.payment || "",
-              pendingAmount: receipt.pendingAmount?.toString() || "",
-              advanceAmount: receipt.advanceAmount?.toString() || "",
-              cuttingAmount: receipt.cuttingAmount?.toString() || "",
-              jama: receipt.jama?.toString() || "",
-              chuk: receipt.chuk?.toString() || "",
-              isChukEnabled: !!receipt.isChukEnabled,
-              chukPercentage: receipt.chukPercentage?.toString() || "10",
-              deductionRate: receipt.deductionRate?.toString() || "10",
-            });
-            
-            setGameRows(sanitizedGameRows);
-            formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-            // --- End of handleEdit logic ---
-          }
-        } catch (err) {
-          toast.error("Failed to load receipt for editing.");
-          console.error("Fetch receipt error:", err);
-        }
-      };
-      
-      // We must wait for customers to be loaded before we can run this
-      if (customerList.length > 0) {
-        fetchAndLoadReceipt();
-      }
-    }
-  }, [receiptId, customerList, token]); // Runs when ID is found and customerList is ready
 
   return (
     <div className="min-h-screen bg-gray-100 p-2 sm:p-8 font-sans">
@@ -2038,7 +1927,7 @@ const { receiptId } = useParams();
         <h2 className="text-2xl font-bold mb-4">Saved Receipts</h2>
         <input
           type="text"
-          placeholder="Search Receipts by Customer Name or Sr.No...." // --- MODIFIED Placeholder Text ---
+          placeholder="Search Receipts by Customer Name..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full p-3 mb-4 border border-gray-300 rounded-md"
@@ -2047,10 +1936,6 @@ const { receiptId } = useParams();
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {/* --- MODIFIED: Added Sr.No. Header --- */}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Sr.No.
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Customer
                 </th>
@@ -2072,10 +1957,6 @@ const { receiptId } = useParams();
               {filteredReceipts.length > 0 ? (
                 filteredReceipts.map((r) => (
                   <tr key={r._id}>
-                    {/* --- MODIFIED: Added Sr.No. Cell --- */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getCustomerSrNo(r.customerId)}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {r.customerName}
                     </td>
@@ -2114,7 +1995,7 @@ const { receiptId } = useParams();
               ) : (
                 <tr>
                   <td
-                    colSpan="6" // --- MODIFIED: Changed colSpan from 5 to 6 ---
+                    colSpan="5"
                     className="text-center py-4 text-gray-500"
                   >
                     No receipts found.
