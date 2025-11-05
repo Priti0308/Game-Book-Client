@@ -232,6 +232,17 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const fetchedReceipts = response.data.receipts || [];
+
+      // --- NEW SORT LOGIC (REQUEST 3) ---
+      // Sort by _id descending. Mongo ObjectIDs are chronological.
+      // This will put the most recently created/updated receipts first.
+      fetchedReceipts.sort((a, b) => {
+        if (a._id > b._id) return -1;
+        if (a._id < b._id) return 1;
+        return 0;
+      });
+      // --- END NEW SORT LOGIC ---
+
       setReceipts(fetchedReceipts);
 
       if (!formData._id) {
@@ -248,13 +259,13 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     fetchReceipts();
   }, [fetchCustomers, fetchReceipts]);
 
-  // --- UPDATED: This effect now loads aa/ku AND magil/advance ---
+  // --- UPDATED: This effect now loads magil/advance/cutting ONLY ---
   useEffect(() => {
     // --- FIX: Only run if serialNumberInput *actually changes* ---
     if (serialNumberInput === prevSerialNumberRef.current) {
       return;
     }
-    
+
     const serial = serialNumberInput;
     const serialAsNumber = parseInt(serial, 10);
 
@@ -277,7 +288,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
         let lastPendingAmount = "";
         let lastAdvanceAmount = "";
-        // --- RE-ADDED: newGameRows logic ---
+        let lastCuttingAmount = ""; // --- (REQUEST 4)
         let newGameRows = getInitialGameRows(); // Start with fresh rows
 
         if (customerReceipts.length > 0) {
@@ -303,25 +314,10 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
             lastAdvanceAmount = latestReceipt.finalTotal.toString();
           }
 
-          // --- RE-ADDED: Load 'income' values from the last receipt ---
-          if (latestReceipt.gameRows && latestReceipt.gameRows.length > 0) {
-            const lastAaRow = latestReceipt.gameRows.find(
-              (r) => r.type === "आ."
-            );
-            const lastKuRow = latestReceipt.gameRows.find(
-              (r) => r.type === "कु."
-            );
+          // --- MODIFIED (REQUEST 4): Load cutting amount ---
+          lastCuttingAmount = latestReceipt.cuttingAmount?.toString() || "";
 
-            const aaIndex = newGameRows.findIndex((r) => r.type === "आ.");
-            const kuIndex = newGameRows.findIndex((r) => r.type === "कु.");
-
-            if (lastAaRow && aaIndex !== -1) {
-              newGameRows[aaIndex].income = lastAaRow.income;
-            }
-            if (lastKuRow && kuIndex !== -1) {
-              newGameRows[kuIndex].income = lastKuRow.income;
-            }
-          }
+          // --- REMOVED (REQUEST 1): Logic to load aa/ku income removed ---
         }
 
         // Set the form data
@@ -329,16 +325,16 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           ...prev,
           customerId: customer._id,
           customerName: customer.name,
-          pendingAmount: lastPendingAmount, // Keep
-          advanceAmount: lastAdvanceAmount, // Keep
-          cuttingAmount: "", // --- RESET
+          pendingAmount: lastPendingAmount,
+          advanceAmount: lastAdvanceAmount,
+          cuttingAmount: lastCuttingAmount, // --- MODIFIED (REQUEST 4)
           jama: "", // --- CRITICAL FIX: Reset jama to empty ---
           chuk: "", // Reset chuk
           chukPercentage: "10", // Reset chuk percentage
           isChukEnabled: false, // Reset chuk checkbox
         }));
         // --- UPDATED: Use the new game rows ---
-        setGameRows(newGameRows);
+        setGameRows(newGameRows); // This will be getInitialGameRows()
       }
     } else {
       // Clear form data if serial is invalid or empty
@@ -359,7 +355,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
     // --- FIX: Update the ref *after* logic runs ---
     prevSerialNumberRef.current = serialNumberInput;
-    
+
     // --- FIX: Add 'receipts' to dependency array ---
   }, [serialNumberInput, customerList, receipts]);
 
@@ -633,26 +629,25 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
     try {
       if (formData._id) {
-        const res = await axios.put(
+        // --- This is an UPDATE (PUT) ---
+        await axios.put(
           `${API_BASE_URI}/api/receipts/${formData._id}`,
           receiptToSend,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        setReceipts(
-          receipts.map((r) => (r._id === formData._id ? res.data.receipt : r))
-        );
         toast.success("Receipt updated successfully!");
       } else {
-        const res = await axios.post(
+        // --- This is a NEW (POST) ---
+        await axios.post(
           `${API_BASE_URI}/api/receipts`,
           receiptToSend,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        setReceipts([res.data.receipt, ...receipts]);
         toast.success("Receipt saved successfully!");
       }
 
-      // --- CRITICAL FIX: Refresh receipts list *after* save ---
+      // --- CRITICAL: Refresh receipts list *after* save ---
+      // This will fetch the newly sorted list (Request 3)
       await fetchReceipts();
 
       if (clear) {
@@ -770,7 +765,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           headers: { Authorization: `Bearer ${token}` },
         });
         // --- FIX: Refresh receipt list after delete ---
-        await fetchReceipts();
+        await fetchReceipts(); // This will fetch the sorted list
         toast.success("Receipt deleted successfully.");
       } catch (error) {
         toast.error("Failed to delete receipt.");
@@ -780,6 +775,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
   };
 
   const handlePrint = async () => {
+    // This calls handleSave, which now calls fetchReceipts (which sorts)
     const savedSuccessfully = await handleSave(false);
     if (savedSuccessfully) {
       setTimeout(() => {
@@ -804,6 +800,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
     try {
       // 3. Define the two concurrent promises
+      // This calls handleSave, which now calls fetchReceipts (which sorts)
       const savePromise = handleSave(false);
       const imagePromise = toJpeg(printRef.current, {
         quality: 0.95,
@@ -1954,6 +1951,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
+              {/* The 'receipts' array is now sorted, so 'filteredReceipts' will be sorted too */}
               {filteredReceipts.length > 0 ? (
                 filteredReceipts.map((r) => (
                   <tr key={r._id}>
