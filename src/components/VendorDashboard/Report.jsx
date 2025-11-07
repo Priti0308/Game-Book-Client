@@ -9,7 +9,7 @@ import {
   CalendarRange,
   Calendar,
   LineChart,
-  Edit, // --- NEW: Import Edit Icon
+  Edit,
 } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
 // Note: "react-toastify/dist/ReactToastify.css" is assumed to be imported at the root (e.g., index.js or App.js)
@@ -108,7 +108,7 @@ const SkeletonRow = () => (
     <td className="p-3">
       <div className="h-4 bg-gray-200 rounded"></div>
     </td>
-    {/* --- NEW: Skeleton for Advance & Actions --- */}
+    {/* --- Skeleton for Advance & Actions --- */}
     <td className="p-3">
       <div className="h-4 bg-gray-200 rounded"></div>
     </td>
@@ -136,13 +136,14 @@ const EmptyState = ({ icon, title, message, onRetry }) => (
   </div>
 );
 
-// --- UPDATED: CustomerTable now accepts totalYene and totalDene ---
+// --- UPDATED: CustomerTable now accepts totalAdvance ---
 const CustomerTable = ({
   customers,
   loading,
   pageStartIndex,
   totalYene,
   totalDene,
+  totalAdvance, // <-- NEW PROP
 }) => {
   if (loading) {
     return (
@@ -162,7 +163,6 @@ const CustomerTable = ({
               <th className="p-3 text-right text-sm font-semibold text-gray-600 tracking-wider">
                 देणे
               </th>
-              {/* --- NEW: Advance Column --- */}
               <th className="p-3 text-right text-sm font-semibold text-gray-600 tracking-wider">
                 आड (Advance)
               </th>
@@ -191,7 +191,6 @@ const CustomerTable = ({
     );
   }
 
-  // --- NEW: Handle Edit Click (Example) ---
   const handleEditClick = (customerId) => {
     // Here you would navigate to your edit page, for example:
     // navigate(`/customers/${customerId}/edit`);
@@ -219,7 +218,6 @@ const CustomerTable = ({
             <th className="p-3 text-right text-sm font-semibold text-gray-600 tracking-wider">
               देणे (To Give)
             </th>
-            {/* --- NEW: Advance Column --- */}
             <th className="p-3 text-right text-sm font-semibold text-gray-600 tracking-wider">
               आड (Advance)
             </th>
@@ -233,8 +231,8 @@ const CustomerTable = ({
             const finalTotal = c.latestBalance || 0;
             const yene = finalTotal > 0 ? finalTotal : 0;
             const dene = finalTotal < 0 ? Math.abs(finalTotal) : 0;
-            // --- NEW: Advance is 0 because API doesn't send it ---
-            const advance = 0; // c.advanceAmount || 0; <--- This data is NOT available
+            // --- UPDATED: Read advanceAmount from customer object ---
+            const advance = c.advanceAmount || 0;
 
             return (
               <tr
@@ -253,11 +251,10 @@ const CustomerTable = ({
                 <td className="p-3 whitespace-nowrap text-sm text-red-600 font-medium text-right">
                   {formatCurrency(dene)}
                 </td>
-                {/* --- NEW: Advance Column Data --- */}
+                {/* --- UPDATED: Display dynamic advance amount --- */}
                 <td className="p-3 whitespace-nowrap text-sm text-blue-600 font-medium text-right">
                   {formatCurrency(advance)}
                 </td>
-                {/* --- NEW: Action Button --- */}
                 <td className="p-3 whitespace-nowrap text-sm text-center">
                   <button
                     onClick={() => handleEditClick(c._id)}
@@ -283,14 +280,13 @@ const CustomerTable = ({
             <td className="p-3 text-right text-red-700">
               {formatCurrency(totalDene)}
             </td>
-            {/* --- NEW: Total for Advance --- */}
+            {/* --- UPDATED: Display dynamic totalAdvance --- */}
             <td className="p-3 text-right text-blue-700">
-              {formatCurrency(0)}
+              {formatCurrency(totalAdvance)}
             </td>
             <td className="p-3"></td>
           </tr>
         </tfoot>
-        {/* --- END UPDATE --- */}
       </table>
     </div>
   );
@@ -361,8 +357,8 @@ export default function ReportPage() {
         },
       };
 
-      // ! THIS IS THE API CALL. It only returns `latestBalance`.
-      // ! It does NOT return `advanceAmount`.
+      // ! THIS API CALL is assumed to now return:
+      // ! { _id, name, latestBalance, advanceAmount }
       const [customerRes, weeklyRes, monthlyRes, yearlyRes] =
         await Promise.all([
           axios.get(
@@ -415,10 +411,11 @@ export default function ReportPage() {
     fetchData();
   }, [fetchData]);
 
-  // --- UPDATED: This useMemo now returns all total values ---
-  const { netBalance, totalYene, totalDene } = useMemo(() => {
+  // --- UPDATED: This useMemo now calculates and returns totalAdvance ---
+  const { netBalance, totalYene, totalDene, totalAdvance } = useMemo(() => {
     let yene = 0;
     let dene = 0;
+    let advance = 0; // <-- NEW: Accumulator for advance
 
     allCustomers.forEach((c) => {
       const balance = c.latestBalance || 0;
@@ -427,13 +424,18 @@ export default function ReportPage() {
       } else if (balance < 0) {
         dene += Math.abs(balance);
       }
-      // We cannot calculate total advance here as it's not in the data
+      
+      // --- NEW: Calculate total advance from API data ---
+      if (c.advanceAmount && c.advanceAmount > 0) {
+        advance += c.advanceAmount;
+      }
     });
 
     return {
       totalYene: yene,
       totalDene: dene,
       netBalance: yene - dene,
+      totalAdvance: advance, // <-- NEW: Return total advance
     };
   }, [allCustomers]);
 
@@ -475,23 +477,24 @@ export default function ReportPage() {
       const finalTotal = c.latestBalance || 0;
       const yene = finalTotal > 0 ? finalTotal : 0;
       const dene = finalTotal < 0 ? Math.abs(finalTotal) : 0;
-      const advance = 0; // Data is not available
+      // --- UPDATED: Get advanceAmount from customer data ---
+      const advance = c.advanceAmount || 0;
       return [
         c.srNo || "N/A",
         `"${c.name}"`,
         yene.toFixed(2),
         dene.toFixed(2),
-        advance.toFixed(2),
+        advance.toFixed(2), // <-- Use dynamic advance
       ].join(",");
     });
 
-    // Add the total row to the CSV
+    // --- UPDATED: Add the dynamic totalAdvance to the total row ---
     const totalRow = [
       "Total",
       "",
       totalYene.toFixed(2),
       totalDene.toFixed(2),
-      "0.00",
+      totalAdvance.toFixed(2), // <-- Use dynamic total advance
     ].join(",");
     rows.push(totalRow);
     // --- END UPDATE ---
@@ -526,7 +529,6 @@ export default function ReportPage() {
 
   return (
     <>
-      {/* --- FIXED: Completed the style block --- */}
       <style>{`
             @media print {
                 body * { visibility: hidden; }
@@ -539,11 +541,10 @@ export default function ReportPage() {
                 thead, tfoot { background-color: #f4f4f4 !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
                 td.text-green-600, td.text-green-700 { color: #16a34a !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
                 td.text-red-600, td.text-red-700 { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
-                /* --- NEW: Print style for Advance column --- */
+                /* --- Print style for Advance column --- */
                 td.text-blue-600, td.text-blue-700 { color: #2563eb !important; -webkit-print-color-adjust: exact; color-adjust: exact; }
             }
         `}</style>
-      {/* --- END FIX --- */}
 
       <div className="bg-gray-50 min-h-full p-4 sm:p-6 lg:p-8">
         <div className="bg-white rounded-2xl shadow-xl p-6 max-w-7xl mx-auto space-y-6">
@@ -632,12 +633,14 @@ export default function ReportPage() {
             </div>
 
             <div className="print-hidden">
+              {/* --- UPDATED: Pass totalAdvance prop --- */}
               <CustomerTable
                 customers={currentCustomersOnPage}
                 loading={loading && allCustomers.length === 0}
                 pageStartIndex={pageStartIndex}
                 totalYene={totalYene}
                 totalDene={totalDene}
+                totalAdvance={totalAdvance}
               />
             </div>
 
@@ -661,7 +664,6 @@ export default function ReportPage() {
                     <th className="p-3 text-right text-sm font-semibold text-gray-600 tracking-wider">
                       देणे
                     </th>
-                    {/* --- NEW: Advance Column --- */}
                     <th className="p-3 text-right text-sm font-semibold text-gray-600 tracking-wider">
                       आड (Advance)
                     </th>
@@ -672,7 +674,8 @@ export default function ReportPage() {
                     const finalTotal = c.latestBalance || 0;
                     const yene = finalTotal > 0 ? finalTotal : 0;
                     const dene = finalTotal < 0 ? Math.abs(finalTotal) : 0;
-                    const advance = 0; // Data is not available
+                    // --- UPDATED: Get advanceAmount from customer data ---
+                    const advance = c.advanceAmount || 0;
                     return (
                       <tr key={c._id}>
                         <td className="p-3 whitespace-nowrap text-sm text-gray-700">
@@ -687,7 +690,7 @@ export default function ReportPage() {
                         <td className="p-3 whitespace-nowrap text-sm text-red-600 text-right">
                           {formatCurrency(dene)}
                         </td>
-                        {/* --- NEW: Advance Column Data --- */}
+                        {/* --- UPDATED: Display dynamic advance amount --- */}
                         <td className="p-3 whitespace-nowrap text-sm text-blue-600 text-right">
                           {formatCurrency(advance)}
                         </td>
@@ -706,9 +709,9 @@ export default function ReportPage() {
                     <td className="p-3 text-right text-red-700">
                       {formatCurrency(totalDene)}
                     </td>
-                    {/* --- NEW: Total for Advance --- */}
+                    {/* --- UPDATED: Display dynamic totalAdvance --- */}
                     <td className="p-3 text-right text-blue-700">
-                      {formatCurrency(0)}
+                      {formatCurrency(totalAdvance)}
                     </td>
                   </tr>
                 </tfoot>

@@ -18,6 +18,7 @@ import {
   FaSpinner,
   FaReceipt,
   FaUserPlus,
+  FaTimes, // Added for mobile close
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import CustomerTab from "./CustomerTab";
@@ -32,7 +33,11 @@ const API_BASE_URI = "https://game-book.onrender.com";
 
 const VendorDashboard = () => {
   const navigate = useNavigate();
+  // 'collapsed' is for desktop sidebar (w-20 vs w-64)
   const [collapsed, setCollapsed] = useState(false);
+  // 'isMobileMenuOpen' is for mobile drawer (open vs closed)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const [editMode, setEditMode] = useState(false);
   const [currentSection, setCurrentSection] = useState("dashboard");
   const [vendor, setVendor] = useState(null);
@@ -46,9 +51,11 @@ const VendorDashboard = () => {
     address: "",
   });
 
+  // Toggles the DESKTOP sidebar collapse
   const toggleSidebar = () => setCollapsed(!collapsed);
+  // Toggles the MOBILE sidebar drawer
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
-  // --- Menu updated to remove 'Help' ---
   const menu = [
     { key: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
     { key: "profile", label: "Profile", icon: <FaUserCircle /> },
@@ -61,9 +68,23 @@ const VendorDashboard = () => {
   ];
 
   const handleLogout = () => {
-    localStorage.clear(); // Clears all items for a cleaner logout
+    localStorage.clear();
     window.location.replace("/");
   };
+
+  // New function to handle menu clicks
+  const handleMenuClick = (key) => {
+    if (key === "logout") {
+      handleLogout();
+    } else {
+      setCurrentSection(key);
+    }
+    // Close mobile menu on any selection
+    if (isMobileMenuOpen) {
+      setIsMobileMenuOpen(false);
+    }
+  };
+
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -88,7 +109,6 @@ const VendorDashboard = () => {
       }
     };
 
-    // --- Switched to REAL API CALL for activities ---
     const fetchRecentActivities = async () => {
       try {
         const response = await fetch(`${API_BASE_URI}/api/activities/recent`, {
@@ -96,7 +116,6 @@ const VendorDashboard = () => {
         });
         if (!response.ok) throw new Error("Failed to fetch activities.");
         const data = await response.json();
-        // Use createdAt from the backend instead of a new Date()
         setRecentActivities(data.activities); 
       } catch (error) {
         console.error(error);
@@ -177,11 +196,20 @@ const VendorDashboard = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+          onClick={toggleMobileMenu}
+        ></div>
+      )}
+
       {/* Sidebar */}
       <div
-        className={`flex flex-col bg-white shadow-lg transition-all ${
-          collapsed ? "w-20" : "w-64"
-        }`}
+        className={`flex flex-col bg-white shadow-lg transition-all 
+          fixed inset-y-0 left-0 z-30 w-64 transform ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
+          md:relative md:translate-x-0 
+          ${collapsed ? "md:w-20" : "md:w-64"}`}
       >
         <div className="flex items-center justify-between p-4 border-b">
           {!collapsed && (
@@ -189,11 +217,19 @@ const VendorDashboard = () => {
               {vendor?.businessName || "Vendor"}
             </h2>
           )}
+          {/* Desktop Toggle Button */}
           <button
             onClick={toggleSidebar}
-            className="p-2 rounded hover:bg-gray-200"
+            className="p-2 rounded hover:bg-gray-200 hidden md:block"
           >
             <FaBars />
+          </button>
+          {/* Mobile Close Button */}
+          <button
+            onClick={toggleMobileMenu}
+            className="p-2 rounded hover:bg-gray-200 md:hidden"
+          >
+            <FaTimes />
           </button>
         </div>
 
@@ -201,172 +237,184 @@ const VendorDashboard = () => {
           {menu.map((item) => (
             <button
               key={item.key}
-              onClick={() => {
-                if (item.key === "logout") handleLogout();
-                else setCurrentSection(item.key);
-              }}
+              onClick={() => handleMenuClick(item.key)}
               className={`flex items-center gap-3 p-2 rounded-lg font-medium transition ${
                 currentSection === item.key
                   ? "bg-purple-500 text-white"
                   : "hover:bg-gray-200"
-              }`}
+              } ${collapsed ? "justify-center" : ""}`}
             >
               {item.icon}
-              {!collapsed && <span>{item.label}</span>}
+              <span className={collapsed ? "md:hidden" : ""}>{item.label}</span>
             </button>
           ))}
         </nav>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-6 overflow-y-auto">
-        {currentSection === "dashboard" && (
-          <div className="space-y-8">
-            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-2xl mx-auto space-y-4">
-              <h2 className="text-3xl font-bold text-purple-600 mb-4">
-                Profile
-              </h2>
-              <div className="text-gray-800 text-lg font-semibold space-y-3">
-                <p>
-                  <span className="text-gray-400 font-normal">Name:</span>{" "}
-                  {vendor?.name}
-                </p>
-                <p>
-                  <span className="text-gray-400 font-normal">Email:</span>{" "}
-                  {vendor?.email}
-                </p>
-                <p>
-                  <span className="text-gray-400 font-normal">Mobile:</span>{" "}
-                  {vendor?.mobile}
-                </p>
-                <p>
-                  <span className="text-gray-400 font-normal">Address:</span>{" "}
-                  {vendor?.address}
-                </p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 justify-items-center">
-              <div
-                onClick={() => setCurrentSection("createReceipt")}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl p-6 text-center font-semibold shadow-lg hover:scale-105 cursor-pointer transition-transform w-full max-w-xs"
-              >
-                Create Receipt
-              </div>
-              <div
-                onClick={() => setCurrentSection("viewReceipts")}
-                className="bg-gradient-to-r from-blue-500 to-cyan-400 text-white rounded-xl p-6 text-center font-semibold shadow-lg hover:scale-105 cursor-pointer transition-transform w-full max-w-xs"
-              >
-                View Receipts
-              </div>
-              <div
-                onClick={() => setCurrentSection("reports")}
-                className="bg-gradient-to-r from-green-500 to-teal-400 text-white rounded-xl p-6 text-center font-semibold shadow-lg hover:scale-105 cursor-pointer transition-transform w-full max-w-xs"
-              >
-                Customer Reports
-              </div>
-            </div>
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {/* Mobile Header */}
+        <header className="md:hidden bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-10">
+          <button
+            onClick={toggleMobileMenu}
+            className="p-2 rounded hover:bg-gray-200"
+          >
+            <FaBars />
+          </button>
+          <h2 className="font-bold text-purple-600">
+            {vendor?.businessName || "Vendor"}
+          </h2>
+          <div className="w-8"></div> {/* Spacer */}
+        </header>
 
-            <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-              <h2 className="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">
-                Recent Activities
-              </h2>
-              <div className="space-y-4 text-gray-600">
-                {recentActivities.length > 0 ? (
-                  recentActivities.map((activity) => (
-                    <div key={activity._id} className="flex items-center gap-4">
-                      <div className="text-2xl">
-                        {getActivityIcon(activity.type)}
+        {/* Content Area */}
+        <main className="flex-1 p-4 md:p-6">
+          {currentSection === "dashboard" && (
+            <div className="space-y-6 md:space-y-8">
+              <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 max-w-2xl mx-auto space-y-4">
+                <h2 className="text-2xl md:text-3xl font-bold text-purple-600 mb-4">
+                  Profile
+                </h2>
+                <div className="text-gray-800 text-base md:text-lg font-semibold space-y-3">
+                  <p>
+                    <span className="text-gray-400 font-normal">Name:</span>{" "}
+                    {vendor?.name}
+                  </p>
+                  <p>
+                    <span className="text-gray-400 font-normal">Email:</span>{" "}
+                    {vendor?.email}
+                  </p>
+                  <p>
+                    <span className="text-gray-400 font-normal">Mobile:</span>{" "}
+                    {vendor?.mobile}
+                  </p>
+                  <p>
+                    <span className="text-gray-400 font-normal">Address:</span>{" "}
+                    {vendor?.address}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 justify-items-center">
+                <div
+                  onClick={() => handleMenuClick("createReceipt")}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl p-6 text-center font-semibold shadow-lg hover:scale-105 cursor-pointer transition-transform w-full max-w-xs"
+                >
+                  Create Receipt
+                </div>
+                <div
+                  onClick={() => handleMenuClick("viewReceipts")}
+                  className="bg-gradient-to-r from-blue-500 to-cyan-400 text-white rounded-xl p-6 text-center font-semibold shadow-lg hover:scale-105 cursor-pointer transition-transform w-full max-w-xs"
+                >
+                  View Receipts
+                </div>
+                <div
+                  onClick={() => handleMenuClick("reports")}
+                  className="bg-gradient-to-r from-green-500 to-teal-400 text-white rounded-xl p-6 text-center font-semibold shadow-lg hover:scale-105 cursor-pointer transition-transform w-full max-w-xs"
+                >
+                  Customer Reports
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+                <h2 className="text-xl md:text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">
+                  Recent Activities
+                </h2>
+                <div className="space-y-4 text-gray-600">
+                  {recentActivities.length > 0 ? (
+                    recentActivities.map((activity) => (
+                      <div key={activity._id} className="flex items-center gap-4">
+                        <div className="text-2xl">
+                          {getActivityIcon(activity.type)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">{activity.description}</p>
+                          <p className="text-sm text-gray-400">
+                            {new Date(activity.createdAt).toLocaleString()}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800">{activity.description}</p>
-                        <p className="text-sm text-gray-400">
-                           {/* Use createdAt from the backend */}
-                           {new Date(activity.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p>No recent activities to show.</p>
-                )}
+                    ))
+                  ) : (
+                    <p>No recent activities to show.</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentSection === "profile" && (
-            <div className="bg-white rounded-2xl shadow-xl p-10 max-w-5xl mx-auto space-y-8">
-            <h2 className="text-4xl font-bold text-gray-900">Business Profile</h2>
-            {editMode ? (
-              <div className="space-y-6 text-gray-800 text-xl">
-                <div className="flex items-center gap-4">
-                  <FaBuilding className="text-purple-600 text-2xl" />
-                  <input type="text" name="businessName" value={formData.businessName} onChange={handleChange} className="border rounded-lg p-2 w-full" />
+          {currentSection === "profile" && (
+              <div className="bg-white rounded-2xl shadow-xl p-6 md:p-10 max-w-5xl mx-auto space-y-8">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Business Profile</h2>
+              {editMode ? (
+                <div className="space-y-6 text-gray-800 text-lg md:text-xl">
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <FaBuilding className="text-purple-600 text-2xl" />
+                    <input type="text" name="businessName" value={formData.businessName} onChange={handleChange} className="border rounded-lg p-2 w-full" />
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <FaUser className="text-purple-600 text-2xl" />
+                    <input type="text" name="name" value={formData.name} onChange={handleChange} className="border rounded-lg p-2 w-full" />
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <FaEnvelope className="text-purple-600 text-2xl" />
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="border rounded-lg p-2 w-full" />
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <FaPhone className="text-purple-600 text-2xl" />
+                    <input type="text" name="mobile" value={formData.mobile} onChange={handleChange} className="border rounded-lg p-2 w-full" />
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <FaMapMarkerAlt className="text-purple-600 text-2xl" />
+                    <input type="text" name="address" value={formData.address} onChange={handleChange} className="border rounded-lg p-2 w-full" />
+                  </div>
+                  <div className="flex flex-col sm:flex-row justify-end gap-4">
+                    <button onClick={() => setEditMode(false)} className="px-6 py-3 bg-gray-300 rounded-lg font-semibold">
+                      Cancel
+                    </button>
+                    <button onClick={handleSave} className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold">
+                      Save
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <FaUser className="text-purple-600 text-2xl" />
-                  <input type="text" name="name" value={formData.name} onChange={handleChange} className="border rounded-lg p-2 w-full" />
+              ) : (
+                <div className="space-y-6 text-gray-800 text-lg md:text-xl">
+                  <div className="flex items-center gap-4">
+                    <FaBuilding className="text-purple-600 text-2xl" />
+                    <span className="font-semibold">{vendor?.businessName}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <FaUser className="text-purple-600 text-2xl" />
+                    <span className="font-semibold">{vendor?.name}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <FaEnvelope className="text-purple-600 text-2xl" />
+                    <span className="font-semibold">{vendor?.email}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <FaPhone className="text-purple-600 text-2xl" />
+                    <span className="font-semibold">{vendor?.mobile}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <FaMapMarkerAlt className="text-purple-600 text-2xl" />
+                    <span className="font-semibold">{vendor?.address}</span>
+                  </div>
+                  <div className="flex justify-end">
+                    <button onClick={handleEditClick} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-purple-700 transition">
+                      <FaEdit /> Edit
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <FaEnvelope className="text-purple-600 text-2xl" />
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} className="border rounded-lg p-2 w-full" />
-                </div>
-                <div className="flex items-center gap-4">
-                  <FaPhone className="text-purple-600 text-2xl" />
-                  <input type="text" name="mobile" value={formData.mobile} onChange={handleChange} className="border rounded-lg p-2 w-full" />
-                </div>
-                <div className="flex items-center gap-4">
-                  <FaMapMarkerAlt className="text-purple-600 text-2xl" />
-                  <input type="text" name="address" value={formData.address} onChange={handleChange} className="border rounded-lg p-2 w-full" />
-                </div>
-                <div className="flex justify-end gap-4">
-                  <button onClick={() => setEditMode(false)} className="px-6 py-3 bg-gray-300 rounded-lg font-semibold">
-                    Cancel
-                  </button>
-                  <button onClick={handleSave} className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold">
-                    Save
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6 text-gray-800 text-xl">
-                <div className="flex items-center gap-4">
-                  <FaBuilding className="text-purple-600 text-2xl" />
-                  <span className="font-semibold">{vendor?.businessName}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <FaUser className="text-purple-600 text-2xl" />
-                  <span className="font-semibold">{vendor?.name}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <FaEnvelope className="text-purple-600 text-2xl" />
-                  <span className="font-semibold">{vendor?.email}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <FaPhone className="text-purple-600 text-2xl" />
-                  <span className="font-semibold">{vendor?.mobile}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <FaMapMarkerAlt className="text-purple-600 text-2xl" />
-                  <span className="font-semibold">{vendor?.address}</span>
-                </div>
-                <div className="flex justify-end">
-                  <button onClick={handleEditClick} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-purple-700 transition">
-                    <FaEdit /> Edit
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
-        {currentSection === "customers" && <CustomerTab />}
-        {currentSection === "createReceipt" && <ReceiptForm businessName={vendor?.businessName} />}
-        {currentSection === "viewReceipts" && <ViewReceipts />}
-         {/* {currentSection === "shortcut" && <Shortcut />} */}
-        {currentSection === "reports" && <Report />}
-       
+          {currentSection === "customers" && <CustomerTab />}
+          {currentSection === "createReceipt" && <ReceiptForm businessName={vendor?.businessName} />}
+          {currentSection === "viewReceipts" && <ViewReceipts />}
+          {/* {currentSection === "shortcut" && <Shortcut />} */}
+          {currentSection === "reports" && <Report />}
+        </main>
       </div>
     </div>
   );

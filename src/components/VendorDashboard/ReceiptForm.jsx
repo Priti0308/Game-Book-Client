@@ -261,7 +261,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     fetchReceipts();
   }, [fetchCustomers, fetchReceipts]);
 
-  // --- UPDATED: This effect now loads magil/advance/cutting ONLY ---
+  // --- UPDATED: This effect now loads magil/advance ONLY ---
   useEffect(() => {
     // --- FIX: Only run if serialNumberInput *actually changes* ---
     if (serialNumberInput === prevSerialNumberRef.current) {
@@ -290,7 +290,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
 
         let lastPendingAmount = "";
         let lastAdvanceAmount = "";
-        let lastCuttingAmount = ""; // --- (REQUEST 4)
+        // --- MODIFIED: cuttingAmount will now remain blank
+        const lastCuttingAmount = "";
         let newGameRows = getInitialGameRows(); // Start with fresh rows
 
         if (customerReceipts.length > 0) {
@@ -316,8 +317,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
             lastAdvanceAmount = latestReceipt.finalTotal.toString();
           }
 
-          // --- MODIFIED (REQUEST 4): Load cutting amount ---
-          lastCuttingAmount = latestReceipt.cuttingAmount?.toString() || "";
+          // --- REMOVED: Logic to load cutting amount removed ---
+          // lastCuttingAmount = latestReceipt.cuttingAmount?.toString() || "";
 
           // --- REMOVED (REQUEST 1): Logic to load aa/ku income removed ---
         }
@@ -329,7 +330,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
           customerName: customer.name,
           pendingAmount: lastPendingAmount,
           advanceAmount: lastAdvanceAmount,
-          cuttingAmount: lastCuttingAmount, // --- MODIFIED (REQUEST 4)
+          cuttingAmount: lastCuttingAmount, // --- MODIFIED: This will be ""
           jama: "", // --- CRITICAL FIX: Reset jama to empty ---
           chuk: "", // Reset chuk
           chukPercentage: "10", // Reset chuk percentage
@@ -551,6 +552,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
       const perc = Number(formData.chukPercentage) || 0;
       chuk = jamaTotal * (perc / 100);
     } else {
+      // --- MODIFICATION: Allow negative chuk. Number() handles this.
       chuk = Number(formData.chuk) || 0;
     }
     // --- END UPDATE ---
@@ -558,6 +560,8 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
     const advanceAmount = Number(formData.advanceAmount) || 0;
     const cuttingAmount = Number(formData.cuttingAmount) || 0;
 
+    // --- MODIFICATION: This calculation is correct.
+    // If chuk is -50, jamaTotal - (-50) = jamaTotal + 50
     const finalTotalAfterChuk = jamaTotal - chuk;
     const finalTotal = advanceAmount - cuttingAmount;
 
@@ -1403,12 +1407,36 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
             {/* Date, Day, and Customer Info */}
             <div className="info-section mt-4">
               <div className="date-info">
-                <div>
-                  वार:- <span className="font-semibold">{formData.day}</span>
+                {/* --- MODIFIED: Day and Date are now editable --- */}
+                <div className="flex items-center">
+                  <span className="mr-2">वार:-</span>
+                  <input
+                    type="text"
+                    name="day"
+                    value={formData.day}
+                    onChange={handleChange}
+                    className="font-semibold bg-transparent border-b print-hidden w-24"
+                  />
+                  <span className="hidden print:inline font-semibold">
+                    {formData.day}
+                  </span>
                 </div>
-                <div>
-                  दि:- <span className="font-semibold">{formData.date}</span>
+                <div className="flex items-center">
+                  <span className="mr-2">दि:-</span>
+                  <input
+                    type="text"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                    placeholder="DD-MM-YYYY"
+                    className="font-semibold bg-transparent border-b print-hidden w-28"
+                  />
+                  <span className="hidden print:inline font-semibold">
+                    {formData.date}
+                  </span>
                 </div>
+                {/* --- END MODIFICATION --- */}
+
                 <div className="mt-2">
                   <div className="print-hidden">
                     <div
@@ -1841,6 +1869,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
                 )}
 
                 {/* Chuk Amount Input */}
+                {/* --- MODIFIED: This is type="number", so it accepts negative values --- */}
                 <input
                   type="number"
                   name="chuk"
@@ -1861,6 +1890,7 @@ const ReceiptForm = ({ businessName = "Bappa Gaming" }) => {
               {/* --- END UPDATE --- */}
 
               <div className="flex justify-between">
+                {/* --- MODIFIED: This logic is correct for yene/dene --- */}
                 <span>
                   अंतिम टोटल{" "}
                   {calculationResults.finalTotalAfterChuk < 0
