@@ -421,9 +421,9 @@ const ViewReceipts = () => {
   }, [token]);
 
   useEffect(() => {
-    setLoading(true); // Set master loading true
-    Promise.all([fetchReceipts(), fetchCustomers()]) // Fetch both
-      .finally(() => setLoading(false)); // Set master loading false when both are done
+    setLoading(true); 
+    Promise.all([fetchReceipts(), fetchCustomers()])
+      .finally(() => setLoading(false)); 
   }, [fetchReceipts, fetchCustomers]);
 
   const handleDelete = async (receiptToDelete) => {
